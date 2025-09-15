@@ -1272,120 +1272,82 @@ async def setlogpays(interaction: discord.Interaction, channel: discord.TextChan
     embed.set_image(url=IMAGE_URL)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Commande ranking
-@bot.tree.command(name="ranking", description="Affiche le classement des plus riches de l'économie")
-@app_commands.checks.has_permissions(administrator=True)  # Remplace view_channel par administrator
+
+# Commande ranking simplifiée : affiche seulement l'argent total en circulation
+@bot.tree.command(name="ranking", description="Affiche l'argent total en circulation")
 async def ranking(interaction: discord.Interaction):
-    """Affiche le classement économique du serveur avec top 15."""
-    await interaction.response.defer(ephemeral=True)
-    
-    # Statistiques générales
     total_money = sum(balances.values())
-    nb_users = len([k for k in balances.keys() if not k.startswith("&") and balances[k] > 0])
-    nb_pays = len([k for k in balances.keys() if k in [str(r.id) for r in interaction.guild.roles] and balances[k] > 0])
-    
-    # Top 15 des plus riches (utilisateurs)
-    richest_users = []
-    for member in interaction.guild.members:
-        member_id = str(member.id)
-        if member_id in balances and balances[member_id] > 0:
-            richest_users.append((member, balances[member_id]))
-    
-    richest_users.sort(key=lambda x: x[1], reverse=True)
-    richest_users = richest_users[:15]  # Top 15
-    
-    # Top 15 des pays les plus riches
-    richest_countries = []
-    for role in interaction.guild.roles:
-        role_id = str(role.id)
-        if role_id in balances and balances[role_id] > 0:
-            richest_countries.append((role, balances[role_id]))
-    
-    richest_countries.sort(key=lambda x: x[1], reverse=True)
-    richest_countries = richest_countries[:15]  # Top 15
-    
-    # Créer les embeds pour la pagination
-    pages = []
-    
-    # Page 1: Statistiques générales et top utilisateurs
-    embed1 = discord.Embed(
-        title="📊 Classement Économique (1/2)",
-        description=f"> **Total d'argent en circulation:** {format_number(total_money)} {MONNAIE_EMOJI}\n"
-                   f"> **Nombre d'utilisateurs avec de l'argent:** {nb_users}\n"
-                   f"> **Nombre de pays avec un PIB:** {nb_pays}{INVISIBLE_CHAR}",
+    embed = discord.Embed(
+        title="📊 Argent en circulation",
+        description=f"> **Total d'argent en circulation :** {format_number(total_money)} {MONNAIE_EMOJI}{INVISIBLE_CHAR}",
         color=EMBED_COLOR
     )
-    
-    # Ajouter les top 15 utilisateurs
-    if richest_users:
-        user_values = []
-        for i, (user, amount) in enumerate(richest_users, 1):
-            user_values.append(f"> {i}. {user.mention}: {format_number(amount)} {MONNAIE_EMOJI}")
-        
-        embed1.add_field(
-            name="👤 Top 15 des utilisateurs les plus riches",
-            value="\n".join(user_values),
-            inline=False
-        )
-    
-    embed1.set_image(url=IMAGE_URL)
-    embed1.set_footer(text="Page 1/2 • Utilisez les flèches pour naviguer")
-    pages.append(embed1)
-    
-    # Page 2: Top pays
-    embed2 = discord.Embed(
-        title="📊 Classement Économique (2/2)",
-        description=f"> **Total d'argent en circulation:** {format_number(total_money)} {MONNAIE_EMOJI}\n"
-                   f"> **Nombre de pays avec un PIB:** {nb_pays}{INVISIBLE_CHAR}",
-        color=EMBED_COLOR
-    )
-    
-    if richest_countries:
-        country_values = []
-        for i, (role, amount) in enumerate(richest_countries, 1):
-            country_values.append(f"> {i}. {role.mention}: {format_number(amount)} {MONNAIE_EMOJI}")
-        
-        embed2.add_field(
-            name="🏛️ Top 15 des pays les plus riches",
-            value="\n".join(country_values),
-            inline=False
-        )
-    
-    embed2.set_image(url=IMAGE_URL)
-    embed2.set_footer(text="Page 2/2 • Utilisez les flèches pour naviguer")
-    pages.append(embed2)
-    
-    # Créer la vue personnalisée avec des boutons emoji
-    class PaginationViewEmoji(discord.ui.View):
-        def __init__(self, pages, author_id, timeout=60):
-            super().__init__(timeout=timeout)
-            self.pages = pages
-            self.author_id = author_id
-            self.current_page = 0
-        
-        @discord.ui.button(emoji="◀️", style=discord.ButtonStyle.secondary)
-        async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            """Page précédente."""
-            if interaction.user.id != self.author_id:
-                await interaction.response.send_message("Vous n'êtes pas autorisé à utiliser ces boutons.", ephemeral=True)
-                return
+    embed.set_image(url=IMAGE_URL)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-            self.current_page = max(0, self.current_page - 1)
-            await interaction.response.edit_message(embed=self.pages[self.current_page])
-        
-        @discord.ui.button(emoji="▶️", style=discord.ButtonStyle.secondary)
-        async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            """Page suivante."""
-            if interaction.user.id != self.author_id:
-                await interaction.response.send_message("Vous n'êtes pas autorisé à utiliser ces boutons.", ephemeral=True)
-                return
-
-            self.current_page = min(len(self.pages) - 1, self.current_page + 1)
-            await interaction.response.edit_message(embed=self.pages[self.current_page])
-    
-    # Afficher la première page avec les boutons
-    view = PaginationViewEmoji(pages, interaction.user.id)
-    await interaction.followup.send(embed=pages[0], view=view, ephemeral=True)
+# Commande /payer : transfert d'argent d'un pays à un autre ou au bot (argent détruit)
+@bot.tree.command(name="payer", description="Payer une entité ou détruire de l'argent de son pays")
+@app_commands.describe(
+    cible="Le membre ou rôle à payer (laisser vide pour payer le bot)",
+    montant="Montant à payer"
+)
+async def payer(interaction: discord.Interaction, montant: int, cible: typing.Optional[discord.Member] = None, role: typing.Optional[discord.Role] = None):
+    # Cherche le premier rôle pays du membre qui a de l'argent
+    user_roles = [r for r in interaction.user.roles if str(r.id) in balances and balances[str(r.id)] > 0]
+    if not user_roles:
+        await interaction.response.send_message(
+            "> Vous n'avez aucun rôle pays avec de l'argent pour payer.", ephemeral=True)
+        return
+    pays_role = user_roles[0]
+    pays_id = str(pays_role.id)
+    solde = balances.get(pays_id, 0)
+    if montant <= 0:
+        await interaction.response.send_message(
+            "> Le montant doit être positif.", ephemeral=True)
+        return
+    if montant > solde:
+        await interaction.response.send_message(
+            "> Votre pays n'a pas assez d'argent pour payer.", ephemeral=True)
+        return
+    # Paiement à un autre pays (rôle) ou joueur (avec pays)
+    if role:
+        cible_id = str(role.id)
+        balances[pays_id] -= montant
+        balances[cible_id] = balances.get(cible_id, 0) + montant
+        save_balances(balances)
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} payés de {pays_role.mention} à {role.mention}.{INVISIBLE_CHAR}",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+    elif cible:
+        # Cherche le premier rôle pays du destinataire
+        cible_roles = [r for r in cible.roles if str(r.id) in balances]
+        if not cible_roles:
+            await interaction.response.send_message(
+                "> Le destinataire n'a pas de pays pour recevoir l'argent.", ephemeral=True)
+            return
+        cible_role = cible_roles[0]
+        cible_id = str(cible_role.id)
+        balances[pays_id] -= montant
+        balances[cible_id] = balances.get(cible_id, 0) + montant
+        save_balances(balances)
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} payés de {pays_role.mention} à {cible.mention} ({cible_role.mention}).{INVISIBLE_CHAR}",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+    else:
+        # Paiement au bot : l'argent est détruit
+        balances[pays_id] -= montant
+        save_balances(balances)
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} ont été retirés de la circulation depuis {pays_role.mention}.{INVISIBLE_CHAR}",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Commande pour reset l'économie
 @bot.tree.command(name="reset_economie", description="Réinitialise toute l'économie et supprime l'argent en circulation (admin seulement)")
