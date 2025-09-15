@@ -165,7 +165,7 @@ status_message_id = None
 mute_log_channel_data = {}
 
 # Chargement des balances et autres données après la définition de la fonction
-load_all_data()
+# (L'appel à load_all_data() est déplacé après la définition de la fonction)
 
 def format_number(number):
     """Formate un nombre pour l'affichage avec séparateurs de milliers."""
@@ -193,6 +193,8 @@ def load_all_data():
     mute_log_channel_data.update(load_mute_log_channel())
     
     print("Chargement des données terminé")
+
+
 
 def load_balances():
     """Charge les données des balances depuis le fichier."""
@@ -2292,12 +2294,14 @@ async def mp(interaction: discord.Interaction):
             pass  # Ignore les membres qui n'acceptent pas les MP
     await interaction.followup.send(f"Message envoyé à {count} membres.", ephemeral=True)
 
+
+# === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
     check_duplicate_json_files()
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     atexit.register(exit_handler)
-    load_all_data()  # <-- L'appel est bien ici dans le bloc main
+    load_all_data()
     print("Démarrage du bot...")
     try:
         bot.run(TOKEN)
