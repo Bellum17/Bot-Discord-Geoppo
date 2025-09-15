@@ -1627,15 +1627,24 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                 await membre.add_roles(role_ajouter)
         # Supprimer le salon du pays via l'ID associé au rôle (stocké dans pays_log_channel_data)
         salons_supprimes = []
+        # Suppression par ID (stocké lors de creer_pays)
         salon_id = pays_log_channel_data.get(str(pays.id))
         if salon_id:
             salon = interaction.guild.get_channel(int(salon_id))
             if salon:
                 await salon.delete(reason=f"Suppression du pays {pays.name}")
                 salons_supprimes.append(salon.name)
-            # Retirer l'association dans le fichier
             pays_log_channel_data.pop(str(pays.id), None)
             save_pays_log_channel(pays_log_channel_data)
+        # Vérification supplémentaire : suppression par nom si le salon n'est pas trouvé par ID
+        salon_nom_cible = pays.name.lower().replace(' ', '-')
+        for channel in interaction.guild.text_channels:
+            if salon_nom_cible in channel.name.lower():
+                try:
+                    await channel.delete(reason=f"Suppression du pays {pays.name}")
+                    salons_supprimes.append(channel.name)
+                except Exception:
+                    pass
         # Supprimer le rôle du pays
         await pays.delete(reason=raison or "Suppression du pays")
         # Réponse à l'utilisateur

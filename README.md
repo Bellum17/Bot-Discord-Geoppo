@@ -40,24 +40,30 @@ Ce bot Discord gère un système d'économie avancé pour votre serveur, avec un
 
 ## Commandes principales
 
-### Économie de base
-- `/balance [rôle]` - Affiche le budget d'un pays
-- `/payer <rôle> <montant>` - Paye un autre pays ou détruit de l'argent
-- `/ranking` - Affiche l'argent total en circulation
+### Commandes slash principales
 
-### Système de prêts
-- `/creer_pret <emprunteur> <montant> <taux> <paiements> [preteur]` - Crée un prêt
-- `/remboursement_pret <emprunteur> [preteur]` - Effectue un remboursement
-- `/remboursement_annuel` - Rembourse automatiquement tous les prêts actifs (admin)
-
-### Personnel
-- `/bareme_personnel` - Affiche les coûts de recrutement et salaires
-- `/voir_son_personnel <role>` - Affiche le personnel d'un pays
-- `/recruter_du_personnel <role> <type> <quantite>` - Recrute du personnel
-- `/paiement_annuel_personnel` - Force le paiement des salaires (admin)
-
-### Administration
-- `/setlogeconomy <salon>` - Définit le salon des logs économiques
+- `/creer_pays` : Crée un nouveau pays avec son rôle, salon, économie, régime politique et gouvernement (dropdowns).
+- `/modifier_pays` : Modifie les infos d'un pays (nom, dirigeant, économie, régime, gouvernement).
+- `/supprimer_pays` : Supprime un pays, son rôle et son salon, retire tous les rôles associés aux membres.
+- `/modifier_image_pays` : Modifie l'image d'un pays.
+- `/setlogpays` : Définit le salon de logs pour les pays.
+- `/setlogeconomy` : Définit le salon de logs pour l'économie.
+- `/setlogmessage` : Définit le salon de logs pour les messages.
+- `/setstatus` : Définit le statut du bot (En Ligne, En Direct, Hors-Ligne).
+- `/ranking` : Affiche l'argent total en circulation.
+- `/balance` : Affiche l'argent de votre pays ou d'un autre rôle.
+- `/payer` : Payer un autre pays ou détruire de l'argent de son pays.
+- `/add_argent` : Ajoute de l'argent à un rôle (admin).
+- `/remove_argent` : Retire de l'argent à un rôle (utilisable uniquement par les membres du rôle).
+- `/reset_economie` : Réinitialise toute l'économie et supprime l'argent en circulation (admin).
+- `/creer_drapeau` : Convertit une image en drapeau style emoji Twitter.
+- `/creer_role_mute` : Crée le rôle mute et configure les permissions sur tous les salons.
+- `/mute` : Mute un membre pour une durée définie.
+- `/unmute` : Retire le mute d'un membre.
+- `/ban` : Ban un membre du serveur.
+- `/setpermission_mute` : Réapplique les permissions du rôle mute sur tous les salons et catégories.
+- `/setlogmute` : Définit le salon de logs pour les sanctions mute/unmute.
+- `/mp` : Envoie un MP à tous les membres avec choix Oui/Non (admin).
 - `/setlogmessage <salon>` - Définit le salon des logs de messages
 - `/setlogpays <salon>` - Définit le salon des logs de pays
 - `/add_argent <rôle> <montant>` - Ajoute de l'argent à un pays
