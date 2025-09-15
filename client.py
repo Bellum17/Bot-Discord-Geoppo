@@ -967,7 +967,6 @@ def convert_to_bold_letters(text):
     nom_salon_secret="Nom du salon secret à créer (facultatif)",
     categorie_secret="Catégorie où créer le salon secret (facultatif)",
     economie="Type d'économie du pays (facultatif)",
-    regime_politique="Régime politique du pays (facultatif)",
     gouvernement="Forme de gouvernement du pays (facultatif)"
 )
 @app_commands.choices(continent=[
@@ -1563,115 +1562,8 @@ async def remove_argent(interaction: discord.Interaction, role: discord.Role, mo
     nom="Nouveau nom pour le pays (facultatif)",
     nouveau_dirigeant="Nouveau dirigeant du pays (facultatif)",
     economie="Type d'économie du pays (facultatif)",
-    regime_politique="Régime politique du pays (facultatif)",
-    gouvernement="Forme de gouvernement du pays (facultatif)"
 )
-@app_commands.choices(economie=[
-    pays_images.pop(role_id, None)
-    save_balances(balances)
-    save_personnel(personnel)
-    save_pays_images(pays_images)
-    # Supprimer la donnée dans PostgreSQL (balances.json, personnel.json, pays_images.json)
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if DATABASE_URL:
-        try:
-            import json
-            with psycopg2.connect(DATABASE_URL) as conn:
-                with conn.cursor() as cur:
-                    # Charger et mettre à jour balances.json
-                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("balances.json",))
-                    row = cur.fetchone()
-                    if row:
-                        data = json.loads(row[0])
-                        data.pop(role_id, None)
-                        cur.execute("UPDATE json_backups SET content = %s, updated_at = NOW() WHERE filename = %s", (json.dumps(data), "balances.json"))
-                    # Idem pour personnel.json
-                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("personnel.json",))
-                    row = cur.fetchone()
-                    if row:
-                        data = json.loads(row[0])
-                        data.pop(role_id, None)
-                        cur.execute("UPDATE json_backups SET content = %s, updated_at = NOW() WHERE filename = %s", (json.dumps(data), "personnel.json"))
-                    # Idem pour pays_images.json
-                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("pays_images.json",))
-                    row = cur.fetchone()
-                    if row:
-                        data = json.loads(row[0])
-                        data.pop(role_id, None)
-                        cur.execute("UPDATE json_backups SET content = %s, updated_at = NOW() WHERE filename = %s", (json.dumps(data), "pays_images.json"))
-async def modifier_pays(
-                conn.commit()
-            print(f"[DEBUG] Données du pays {role_id} supprimées de PostgreSQL.")
-        except Exception as e:
-            print(f"[DEBUG] Erreur lors de la suppression des données du pays dans PostgreSQL : {e}")
-    """Supprime un pays, son rôle et son salon."""
-    await interaction.response.defer(ephemeral=True)
-    
-    role_id = str(pays.id)
-    
-    # Identifier tous les membres ayant ce rôle (potentiels dirigeants)
-    membres_dirigeants = [membre for membre in pays.members]
-    
-    # ID des rôles spéciaux de joueur et non-joueur
-    role_joueur_id = 1410289640170328244
-    
-    # Retirer tous les rôles liés au pays
-    ROLE_PAYS_PAR_DEFAUT = 1417253039491776733
-    roles_a_retirer = [ROLE_PAYS_PAR_DEFAUT]
-    # Rôles économie
-    roles_economie = [1417234199353622569, 1417234220115431434, 1417234887508754584, 1417234944832442621, 1417234931146555433, 1417235038168289290, 1417235052814794853]
-    # Rôles régime politique
-    roles_regime = [1417251476782448843, 1417251480573968525, 1417251556776218654, 1417251565068226691, 1417251568327200828, 1417251571661537320, 1417251574568456232, 1417251577714053170, 1417252579766829076]
-    # Rôles gouvernement
-    roles_gouv = [1417254283694313652, 1417254315684528330, 1417254344180371636, 1417254681243025428, 1417254399004246161, 1417254501110251540, 1417254550951428147, 1417254582156791908, 1417254615224680508, 1417254639069560904, 1417254809253314590]
-    # Rôles de continent
-    roles_continents = [1413995502785138799, 1413995608922128394, 1413995735732457473, 1413995874304004157, 1413996176956461086]
-    roles_a_retirer += roles_economie + roles_regime + roles_gouv + roles_continents
-    try:
-        for membre in membres_dirigeants:
-            await membre.remove_roles(pays)
-            for role_id in roles_a_retirer:
-                role_obj = interaction.guild.get_role(role_id)
-                if role_obj and role_obj in membre.roles:
-                    await membre.remove_roles(role_obj)
-        
-        # Supprimer le salon principal associé au pays si connu
-        if 'pays_channels' in globals():
-            salon_id = pays_channels.get(str(pays.id))
-            if salon_id:
-                channel = interaction.guild.get_channel(salon_id)
-                if channel:
-                    try:
-                        await channel.delete(reason="Suppression du pays et de son salon associé")
-                    except Exception as e:
-                        print(f"Erreur lors de la suppression du salon (ID {salon_id}) : {e}")
-        # Supprimer le rôle
-        await pays.delete()
-        
-        # Message de confirmation
-        embed = discord.Embed(
-            description=f"> Le pays {pays.name} a été supprimé avec succès.{INVISIBLE_CHAR}",
-            color=discord.Color.red()
-        )
-        await interaction.followup.send(embed=embed)
-        
-        # Log de l'action
-        raison_text = f"Raison : {raison}" if raison else ""
-        log_embed = discord.Embed(
-            title="🗑️ | Suppression de pays",
-            description=(
-                f"> **Administrateur :** {interaction.user.mention}\n"
-                f"> **Pays supprimé : ** {pays.name}\n"
-                f"> **Membres concernés : ** {', '.join([m.mention for m in membres_dirigeants]) if membres_dirigeants else 'Aucun'}\n"
-                f"> {raison_text}{INVISIBLE_CHAR}"
-            ),
-            color=EMBED_COLOR,
-            timestamp=datetime.datetime.now()
-        )
-        await send_log(interaction.guild, embed=log_embed)
-        
-    except Exception as e:
-        await interaction.followup.send(f"> Erreur lors de la suppression du pays: {e}", ephemeral=True)
+# The following code fragment was removed due to syntax errors and misplaced decorators.
 
 @bot.tree.command(name="modifier_pays", description="Modifie les informations d'un pays existant")
 @app_commands.checks.has_permissions(administrator=True)
@@ -1679,10 +1571,6 @@ async def modifier_pays(
     role="Rôle du pays à modifier",
     nom="Nouveau nom pour le pays (facultatif)",
     nouveau_dirigeant="Nouveau dirigeant du pays (facultatif)",
-    economie="Type d'économie du pays (facultatif)",
-    regime_politique="Régime politique du pays (facultatif)",
-    gouvernement="Forme de gouvernement du pays (facultatif)"
-)
     economie="Type d'économie du pays (facultatif)",
     regime_politique="Régime politique du pays (facultatif)",
     gouvernement="Forme de gouvernement du pays (facultatif)"
