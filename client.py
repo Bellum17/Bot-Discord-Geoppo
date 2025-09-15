@@ -6,6 +6,26 @@ Bot Discord pour la gestion d'économie.
 Ce fichier peut être exécuté directement.
 """
 import os
+import psycopg2
+# === Restauration automatique des fichiers JSON depuis PostgreSQL ===
+def restore_all_json_from_postgres():
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    if not DATABASE_URL:
+        print("DATABASE_URL non défini, restauration PostgreSQL ignorée.")
+        return
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT filename, content FROM json_backups")
+                files = cur.fetchall()
+        for filename, content in files:
+            filepath = os.path.join(DATA_DIR, filename)
+            with open(filepath, "w") as f:
+                f.write(content)
+            print(f"Restauration automatique : {filename}")
+    except Exception as e:
+        print(f"Erreur lors de la restauration automatique depuis PostgreSQL : {e}")
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -1289,7 +1309,7 @@ async def ranking(interaction: discord.Interaction):
 # Commande /payer : la cible est un rôle (pays) obligatoire, si rien n'est précisé l'argent est détruit (bot), et on ne save pas dans ce cas
 @bot.tree.command(name="payer", description="Payer un autre pays ou détruire de l'argent de son pays")
 @app_commands.describe(
-    cible="Le rôle (pays) à payer. Si rien n'est sélectionné, l'argent est détruit.",
+    cible="Le rôle (pays) à payer. Si rien n'est sélectionné, l'argent est payé au bot.",
     montant="Montant à payer"
 )
 @app_commands.choices()
@@ -2260,6 +2280,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     atexit.register(exit_handler)
+    restore_all_json_from_postgres()  # restauration auto avant tout chargement local
     load_all_data()
     print("Démarrage du bot...")
     try:
