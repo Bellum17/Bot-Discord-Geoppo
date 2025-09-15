@@ -965,7 +965,10 @@ def convert_to_bold_letters(text):
     couleur="Code couleur hexadécimal pour le rôle (ex: #FF0000 pour rouge, facultatif)",
     image="URL d'une image représentant le pays (facultatif)",
     nom_salon_secret="Nom du salon secret à créer (facultatif)",
-    categorie_secret="Catégorie où créer le salon secret (facultatif)"
+    categorie_secret="Catégorie où créer le salon secret (facultatif)",
+    economie="Type d'économie du pays (facultatif)",
+    regime_politique="Régime politique du pays (facultatif)",
+    gouvernement="Forme de gouvernement du pays (facultatif)"
 )
 @app_commands.choices(continent=[
     discord.app_commands.Choice(name="Europe", value="1413995502785138799"),
@@ -976,8 +979,8 @@ def convert_to_bold_letters(text):
 ])
 async def creer_pays(
     interaction: discord.Interaction, 
-    nom: str, 
-    budget: int, 
+    nom: str,
+    budget: int,
     pib: int,
     continent: str,
     categorie: discord.CategoryChannel,
@@ -987,12 +990,16 @@ async def creer_pays(
     couleur: str = None,
     image: str = None,
     nom_salon_secret: str = None,
-    categorie_secret: discord.CategoryChannel = None
+    categorie_secret: discord.CategoryChannel = None,
+    economie: str = None,
+    regime_politique: str = None,
+    gouvernement: str = None
 ):
     """Crée un nouveau pays avec son rôle et son salon."""
     await interaction.response.defer()
     
     # Vérifier que le budget est positif
+    ROLE_PAYS_PAR_DEFAUT = 1417253039491776733
     if budget <= 0:
         await interaction.followup.send("> Le budget initial doit être positif.", ephemeral=True)
         return
@@ -1007,6 +1014,22 @@ async def creer_pays(
     emoji_message = drapeau_perso if drapeau_perso else "🏛️"
     
     # IDs des rôles à gérer
+    # Ajout des rôles économie, régime politique, gouvernement et rôle par défaut
+    roles_a_ajouter = [ROLE_PAYS_PAR_DEFAUT]
+    if economie:
+        roles_a_ajouter.append(int(economie))
+    if regime_politique:
+        roles_a_ajouter.append(int(regime_politique))
+    if gouvernement:
+        roles_a_ajouter.append(int(gouvernement))
+    # Ajout du rôle de continent
+    if continent:
+        roles_a_ajouter.append(int(continent))
+    # Attribution des rôles au dirigeant
+    for role_id in roles_a_ajouter:
+        role_obj = interaction.guild.get_role(role_id)
+        if role_obj and role_obj not in dirigeant.roles:
+            await dirigeant.add_roles(role_obj, reason="Création du pays")
     ROLE_JOUEUR_ID = 1410289640170328244
     ROLE_NON_JOUEUR_ID = 1393344053608710315
     
@@ -1591,41 +1614,25 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
     # ID des rôles spéciaux de joueur et non-joueur
     role_joueur_id = 1410289640170328244
     
-    # Retirer tous les rôles automatiques et le rôle de continent
-    continent_role = None
-    auto_roles = []
-    # Liste des rôles à retirer automatiquement (mêmes IDs que dans creer_pays)
-    auto_roles_ids = [
-        1413995329656852662,
-        1413997188089909398,
-        1413993747515052112,
-        1413995073632207048,
-        1413993786001985567,
-        1413994327473918142,
-        1413994277029023854,
-        1413993819292045315,
-        1413994233622302750,
-        1413995459827077190,
-        1410289640170328244  # Rôle joueur
-    ]
+    # Retirer tous les rôles liés au pays
+    ROLE_PAYS_PAR_DEFAUT = 1417253039491776733
+    roles_a_retirer = [ROLE_PAYS_PAR_DEFAUT]
+    # Rôles économie
+    roles_economie = [1417234199353622569, 1417234220115431434, 1417234887508754584, 1417234944832442621, 1417234931146555433, 1417235038168289290, 1417235052814794853]
+    # Rôles régime politique
+    roles_regime = [1417251476782448843, 1417251480573968525, 1417251556776218654, 1417251565068226691, 1417251568327200828, 1417251571661537320, 1417251574568456232, 1417251577714053170, 1417252579766829076]
+    # Rôles gouvernement
+    roles_gouv = [1417254283694313652, 1417254315684528330, 1417254344180371636, 1417254681243025428, 1417254399004246161, 1417254501110251540, 1417254550951428147, 1417254582156791908, 1417254615224680508, 1417254639069560904, 1417254809253314590]
+    # Rôles de continent
+    roles_continents = [1413995502785138799, 1413995608922128394, 1413995735732457473, 1413995874304004157, 1413996176956461086]
+    roles_a_retirer += roles_economie + roles_regime + roles_gouv + roles_continents
     try:
         for membre in membres_dirigeants:
-            # Retirer le rôle de pays
             await membre.remove_roles(pays)
-            
-            # Retirer le rôle de continent si présent
-            if continent_role_id := pays_log_channel_data.get(str(interaction.guild.id)):
-                continent_role = interaction.guild.get_role(continent_role_id)
-                if continent_role in membre.roles:
-                    continent_role = continent_role
-                    await membre.remove_roles(continent_role)
-            
-            # Retirer les rôles automatiques
-            for auto_role_id in auto_roles_ids:
-                auto_role = interaction.guild.get_role(auto_role_id)
-                if auto_role in membre.roles:
-                    auto_roles.append(auto_role)
-                    await membre.remove_roles(auto_role)
+            for role_id in roles_a_retirer:
+                role_obj = interaction.guild.get_role(role_id)
+                if role_obj and role_obj in membre.roles:
+                    await membre.remove_roles(role_obj)
         
         # Supprimer le salon principal associé au pays si connu
         if 'pays_channels' in globals():
@@ -1655,8 +1662,6 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                 f"> **Administrateur :** {interaction.user.mention}\n"
                 f"> **Pays supprimé : ** {pays.name}\n"
                 f"> **Membres concernés : ** {', '.join([m.mention for m in membres_dirigeants]) if membres_dirigeants else 'Aucun'}\n"
-                f"> **Continent : ** {continent_role.name if continent_role else 'Non identifié'}\n"
-                f"> **Rôles retirés : ** {len(auto_roles) + (1 if continent_role else 0) + 1} rôles\n"
                 f"> {raison_text}{INVISIBLE_CHAR}"
             ),
             color=EMBED_COLOR,
@@ -1671,124 +1676,108 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
     role="Rôle du pays à modifier",
-    nouveau_nom="Nouveau nom pour le pays (facultatif)",
-    emoji="Nouvel emoji pour le pays (facultatif)",
-    couleur="Nouveau code couleur hexadécimal pour le rôle (ex: #FF0000, facultatif)"
+    nom="Nouveau nom pour le pays (facultatif)",
+    nouveau_dirigeant="Nouveau dirigeant du pays (facultatif)"
 )
 async def modifier_pays(
-    interaction: discord.Interaction, 
+    interaction: discord.Interaction,
     role: discord.Role,
-    nouveau_nom: str = None, 
-    emoji: str = None,
-    couleur: str = None
+    nom: str = None,
+    nouveau_dirigeant: discord.Member = None,
+    economie: str = None,
+    regime_politique: str = None,
+    gouvernement: str = None
 ):
-    """Modifie les informations d'un pays existant."""
+    """Modifie le nom et/ou le dirigeant d'un pays existant."""
     await interaction.response.defer()
-    
+    modifications = []
     try:
-        modifications = []
-        
-        # Chercher le salon du pays
-        country_channel = None
-        for channel in interaction.guild.text_channels:
-            # Vérifier les permissions pour ce rôle
-            if channel.permissions_for(role).read_messages and not channel.permissions_for(interaction.guild.default_role).read_messages:
-                country_channel = channel
-                break
-        
-        # # Modifier le nom du pays si spécifié
-        if nouveau_nom:
-            # Modifier le nom du rôle
+        # Changement de nom du pays
+        if nom:
             old_role_name = role.name
-            role_name = f"{emoji}・❝ ｢ {nouveau_nom} ｣ ❞" if emoji else f"❝ ｢ {nouveau_nom} ｣ ❞"
-            
-            # Si l'emoji n'est pas spécifié mais qu'il y a déjà un emoji dans le nom actuel
-            if not emoji and '・' in old_role_name:
-                parts = old_role_name.split('・', 1)
-                if len(parts) > 1:
-                    emoji_part = parts[0]
-                    role_name = f"{emoji_part}・❝ ｢ {nouveau_nom} ｣ ❞"            
+            role_name = f"❝ ｢ {nom} ｣ ❞"
             await role.edit(name=role_name)
             modifications.append("nom du rôle")
-            
-            # Modifier le nom du salon si trouvé
-            if country_channel:
-                # Convertir les majuscules en caractères spéciaux pour le salon
-                formatted_name = convert_to_bold_letters(nouveau_nom)
-                
-                # Déterminer l'emoji à utiliser
-                current_emoji = None
-                if emoji:
-                    current_emoji = emoji
-                elif '【' in country_channel.name and '】' in country_channel.name:
-                    # Extraire l'emoji actuel
-                    emoji_part = country_channel.name.split('【', 1)[1].split('】', 1)[0]
-                    if emoji_part:
-                        current_emoji = emoji_part
-                
-                # Construire le nouveau nom de salon
-                if current_emoji:
-                    channel_name = f"【{current_emoji}】・{formatted_name.lower().replace(' ', '-')}"
-                else:
+            # Renommer le salon principal si trouvé
+            for channel in interaction.guild.text_channels:
+                if channel.permissions_for(role).read_messages and not channel.permissions_for(interaction.guild.default_role).read_messages:
+                    formatted_name = convert_to_bold_letters(nom)
                     channel_name = f"【】・{formatted_name.lower().replace(' ', '-')}"
-                
-                await country_channel.edit(name=channel_name)
-                modifications.append("nom du salon")
-        
-        # Modifier uniquement l'emoji si le nom n'est pas changé mais l'emoji oui
-        elif emoji:
-            # Extraire le nom actuel du rôle
-            current_name = role.name
-            if '・' in current_name:
-                current_name = current_name.split('・', 1)[1]
-            role_name = f"{emoji}・{current_name}"
-            await role.edit(name=role_name)
-            modifications.append("emoji du rôle")
-            
-            # Modifier l'emoji dans le nom du salon
-            if country_channel:
-                channel_parts = country_channel.name.split('・', 1)
-                if len(channel_parts) > 1:
-                    channel_name = f"【{emoji}】・{channel_parts[1]}"
-                    await country_channel.edit(name=channel_name)
-                    modifications.append("emoji du salon")
-        
-        # Modifier la couleur du rôle si spécifiée
-        if couleur:
-            try:
-                if couleur.startswith('#'):
-                    couleur = couleur[1:]
-                color_value = int(couleur, 16)
-                await role.edit(color=discord.Color(color_value))
-
-                modifications.append("couleur du rôle")
-            except ValueError:
-                await interaction.followup.send("> Format de couleur invalide. La couleur n'a pas été modifiée.", ephemeral=True)
-        
-        # Message de confirmation
+                    await channel.edit(name=channel_name)
+                    modifications.append("nom du salon")
+                    break
+        # Changement de dirigeant
+        if nouveau_dirigeant:
+            ancien_dirigeant = None
+            for membre in role.members:
+                if membre != nouveau_dirigeant:
+                    ancien_dirigeant = membre
+                    break
+            auto_roles_ids = [
+                1413995329656852662, 1413997188089909398, 1413993747515052112, 1413995073632207048,
+                1413993786001985567, 1413994327473918142, 1413994277029023854, 1413993819292045315,
+                1413994233622302750, 1413995459827077190, 1410289640170328244
+            ]
+            if ancien_dirigeant:
+                await ancien_dirigeant.remove_roles(role)
+                for auto_role_id in auto_roles_ids:
+                    auto_role = interaction.guild.get_role(auto_role_id)
+                    if auto_role and auto_role in ancien_dirigeant.roles:
+                        await ancien_dirigeant.remove_roles(auto_role)
+            await nouveau_dirigeant.add_roles(role)
+            for auto_role_id in auto_roles_ids:
+                auto_role = interaction.guild.get_role(auto_role_id)
+                if auto_role and auto_role not in nouveau_dirigeant.roles:
+                    await nouveau_dirigeant.add_roles(auto_role)
+            modifications.append("dirigeant remplacé")
+        # Modification des rôles économie, régime politique, gouvernement
+        ROLE_PAYS_PAR_DEFAUT = 1417253039491776733
+        roles_economie = [1417234199353622569, 1417234220115431434, 1417234887508754584, 1417234944832442621, 1417234931146555433, 1417235038168289290, 1417235052814794853]
+        roles_regime = [1417251476782448843, 1417251480573968525, 1417251556776218654, 1417251565068226691, 1417251568327200828, 1417251571661537320, 1417251574568456232, 1417251577714053170, 1417252579766829076]
+        roles_gouv = [1417254283694313652, 1417254315684528330, 1417254344180371636, 1417254681243025428, 1417254399004246161, 1417254501110251540, 1417254550951428147, 1417254582156791908, 1417254615224680508, 1417254639069560904, 1417254809253314590]
+        # Retirer tous les anciens rôles
+        for role_id in [ROLE_PAYS_PAR_DEFAUT] + roles_economie + roles_regime + roles_gouv:
+            role_obj = interaction.guild.get_role(role_id)
+            if role_obj:
+                for membre in role.members:
+                    if role_obj in membre.roles:
+                        await membre.remove_roles(role_obj)
+        # Ajouter les nouveaux rôles si précisés
+        for membre in role.members:
+            if economie:
+                role_economie = interaction.guild.get_role(int(economie))
+                if role_economie:
+                    await membre.add_roles(role_economie)
+            if regime_politique:
+                role_regime = interaction.guild.get_role(int(regime_politique))
+                if role_regime:
+                    await membre.add_roles(role_regime)
+            if gouvernement:
+                role_gouv = interaction.guild.get_role(int(gouvernement))
+                if role_gouv:
+                    await membre.add_roles(role_gouv)
+            # Toujours ajouter le rôle par défaut
+            role_defaut = interaction.guild.get_role(ROLE_PAYS_PAR_DEFAUT)
+            if role_defaut:
+                await membre.add_roles(role_defaut)
+        modifications.append("rôles modifiés")
         if modifications:
             embed = discord.Embed(
                 title="🏛️ Pays modifié",
-                description=f"> **Pays:** {role.mention}\n"
-                           f"> **Modifications:** {', '.join(modifications)}{INVISIBLE_CHAR}",
+                description=f"> **Pays:** {role.mention}\n> **Modifications:** {', '.join(modifications)}{INVISIBLE_CHAR}",
                 color=EMBED_COLOR
             )
             embed.set_image(url=IMAGE_URL)
             await interaction.followup.send(embed=embed)
-            
-            # Log de l'action
             log_embed = discord.Embed(
                 title=f"🏛️ | Modification de pays",
-                description=f"> **Administrateur :** {interaction.user.mention}\n"
-                           f"> **Pays modifié : ** {role.mention}\n"
-                           f"> **Modifications : ** {', '.join(modifications)}{INVISIBLE_CHAR}",
+                description=f"> **Administrateur :** {interaction.user.mention}\n> **Pays modifié : ** {role.mention}\n> **Modifications : ** {', '.join(modifications)}{INVISIBLE_CHAR}",
                 color=EMBED_COLOR,
                 timestamp=datetime.datetime.now()
             )
             await send_log(interaction.guild, embed=log_embed)
         else:
             await interaction.followup.send("> Aucune modification n'a été apportée.", ephemeral=True)
-        
     except Exception as e:
         await interaction.followup.send(f"> Erreur lors de la modification du pays: {e}", ephemeral=True)
 
