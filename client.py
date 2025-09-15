@@ -166,7 +166,6 @@ mute_log_channel_data = {}
 
 # Chargement des balances et autres données après la définition de la fonction
 # (L'appel à load_all_data() est déplacé après la définition de la fonction)
-
 def format_number(number):
     """Formate un nombre pour l'affichage avec séparateurs de milliers."""
     if isinstance(number, int):
@@ -1437,10 +1436,24 @@ async def reset_economie(interaction: discord.Interaction):
         ephemeral=True
     )
 
-# Commande pour voir l'argent d'un rôle
-@bot.tree.command(name="voir_argent", description="Affiche l'argent d'un rôle (pays)")
-@app_commands.describe(role="Le rôle (pays) dont vous voulez voir l'argent")
-async def voir_argent(interaction: discord.Interaction, role: discord.Role):
+
+# Commande /balance : voir l'argent de son pays ou d'un autre (optionnel)
+@bot.tree.command(name="balance", description="Affiche l'argent de votre pays ou d'un autre rôle (optionnel)")
+@app_commands.describe(role="Le rôle (pays) dont vous voulez voir l'argent (optionnel)")
+async def balance(interaction: discord.Interaction, role: discord.Role = None):
+    # Si aucun rôle n'est précisé, on cherche le premier rôle du membre qui a de l'argent
+    if role is None:
+        user_roles = [r for r in interaction.user.roles if str(r.id) in balances and balances[str(r.id)] > 0]
+        if not user_roles:
+            await interaction.response.send_message(
+                "> Vous n'avez aucun rôle pays avec de l'argent. Précisez un rôle pour voir sa balance.", ephemeral=True)
+            return
+        role = user_roles[0]
+    # Vérifie que l'utilisateur a bien ce rôle ou est admin
+    if role not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message(
+            "> Vous n'avez pas ce rôle, vous ne pouvez pas voir la balance de ce pays.", ephemeral=True)
+        return
     role_id = str(role.id)
     montant = balances.get(role_id, 0)
     embed = discord.Embed(
