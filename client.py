@@ -239,10 +239,41 @@ def load_all_data():
     pays_log_channel_data.update(load_pays_log_channel())
     pays_images.update(load_pays_images())
     status_channel_data.update(load_status_channel())
+# Fonction pour charger les données du canal de statut
+def load_status_channel():
+    if not os.path.exists(STATUS_CHANNEL_FILE):
+        with open(STATUS_CHANNEL_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(STATUS_CHANNEL_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement du canal de statut: {e}")
+        return {}
     status_message_id = load_status_message()
     mute_log_channel_data.update(load_mute_log_channel())
     
     print("Chargement des données terminé")
+
+def load_pays_images():
+    """Charge les images des pays depuis le fichier."""
+    if not os.path.exists(PAYS_IMAGES_FILE):
+        with open(PAYS_IMAGES_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(PAYS_IMAGES_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des images de pays: {e}")
+        return {}
+
+def save_pays_images(data):
+    """Sauvegarde les images des pays dans le fichier."""
+    try:
+        with open(PAYS_IMAGES_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des images de pays: {e}")
 
 
 
