@@ -1523,133 +1523,57 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
     """Supprime un pays, son rôle et son salon."""
     await interaction.response.defer(ephemeral=True)
     
+    role_id = str(pays.id)
+    
+    # Identifier tous les membres ayant ce rôle (potentiels dirigeants)
+    membres_dirigeants = [membre for membre in pays.members]
+    
+    # ID des rôles spéciaux de joueur et non-joueur
+    role_joueur_id = 1410289640170328244
+    
+    # Retirer tous les rôles automatiques et le rôle de continent
+    continent_role = None
+    auto_roles = []
     try:
-        role_id = str(pays.id)
+        for membre in membres_dirigeants:
+            # Retirer le rôle de pays
+            await membre.remove_roles(pays)
+            
+            # Retirer le rôle de continent si présent
+            if continent_role_id := pays_log_channel_data.get(str(interaction.guild.id)):
+                continent_role = interaction.guild.get_role(continent_role_id)
+                if continent_role in membre.roles:
+                    continent_role = continent_role
+                    await membre.remove_roles(continent_role)
+            
+            # Retirer les rôles automatiques
+            for auto_role_id in auto_roles_ids:
+                auto_role = interaction.guild.get_role(auto_role_id)
+                if auto_role in membre.roles:
+                    auto_roles.append(auto_role)
+                    await membre.remove_roles(auto_role)
         
-        # Identifier tous les membres ayant ce rôle (potentiels dirigeants)
-        membres_dirigeants = [membre for membre in pays.members]
+        # Supprimer le rôle
+        await pays.delete()
         
-        # ID des rôles spéciaux de joueur et non-joueur
-        role_joueur_id = 1410289640170328244
-        try:
-            role_id = str(pays.id)
-            # Identifier tous les membres ayant ce rôle (potentiels dirigeants)
-            membres_dirigeants = [membre for membre in pays.members]
-            # ID des rôles spéciaux de joueur et non-joueur
-            role_joueur_id = 1410289640170328244
-            role_non_joueur_id = 1393344053608710315
-            # IDs des rôles à retirer automatiquement
-            auto_roles_ids = [
-                1413994233622302750,
-                1413993819292045315,
-                1413994277029023854,
-                1413994327473918142,
-                1413993786001985567,
-                1413995073632207048,
-                1413993747515052112,
-                1413995459827077190,
-                1413997188089909398,
-                1413995329656852662
-            ]
-            # IDs des rôles de continents
-            continent_roles_ids = {
-                "Europe": 1413995502785138799,
-                "Afrique": 1413995608922128394,
-                "Amérique": 1413995735732457473,
-                "Asie": 1413995874304004157,
-                "Océanie": 1413996176956461086
-            }
-            # Récupérer les objets de rôle
-            role_joueur = interaction.guild.get_role(role_joueur_id)
-            role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
-            # Récupérer les rôles automatiques
-            auto_roles = [interaction.guild.get_role(role_id) for role_id in auto_roles_ids if interaction.guild.get_role(role_id)]
-            # Déterminer le continent du pays à supprimer
-            continent_role = None
-            for membre in membres_dirigeants:
-                for role in membre.roles:
-                    if role.id in continent_roles_ids.values():
-                        continent_role = role
-                        break
-                if continent_role:
-                    break
-            # Trouver les salons du pays (y compris le salon secret)
-            salons_pays = []
-            # Nom du pays formaté (pour retrouver le salon principal et le salon secret)
-            formatted_name = convert_to_bold_letters(pays.name.replace('❝ ｢ ','').replace('｣ ❞','').replace('【','').replace('】','').replace('・','').strip())
-            for channel in interaction.guild.text_channels:
-                # Salon principal (par permissions)
-                perms = channel.overwrites_for(pays)
-                if perms.read_messages:
-                    salons_pays.append(channel)
-                # Salon secret (par nom)
-                if formatted_name.lower().replace(' ', '-') in channel.name:
-                    if channel not in salons_pays:
-                        salons_pays.append(channel)
-            # Supprimer le pays des données
-            if role_id in balances:
-                del balances[role_id]
-            if role_id in personnel:
-                del personnel[role_id]
-            if role_id in pays_images:
-                del pays_images[role_id]
-            # Sauvegarder les données
-            print("[DEBUG] Sauvegarde balances.json après suppression pays...")
-            save_balances(balances)
-            print("[DEBUG] Sauvegarde personnel.json après suppression pays...")
-            save_personnel(personnel)
-            print("[DEBUG] Sauvegarde pays_images.json après suppression pays...")
-            save_pays_images(pays_images)
-            print("[DEBUG] Sauvegarde PostgreSQL après suppression pays...")
-            save_all_json_to_postgres()
-            # Pour chaque dirigeant, retirer les rôles
-            for dirigeant in membres_dirigeants:
-                # Retirer le rôle de joueur et ajouter le rôle de non-joueur
-                if role_joueur and role_joueur in dirigeant.roles:
-                    await dirigeant.remove_roles(role_joueur)
-                if role_non_joueur:
-                    await dirigeant.add_roles(role_non_joueur)
-                # Retirer tous les rôles automatiques
-                roles_a_retirer = [role for role in auto_roles if role in dirigeant.roles]
-                if roles_a_retirer:
-                    await dirigeant.remove_roles(*roles_a_retirer)
-                # Retirer le rôle de continent si trouvé
-                if continent_role and continent_role in dirigeant.roles:
-                    await dirigeant.remove_roles(continent_role)
-            # Supprimer les salons du pays
-            for channel in salons_pays:
-                await channel.delete()
-            # Supprimer le rôle du pays
-            await pays.delete()
-            # Préparer la raison de suppression
-            raison_text = f"**Raison:** {raison}" if raison else "Aucune raison spécifiée."
-            # Embed de confirmation
-            embed = discord.Embed(
-                title="🗑️ Pays supprimé",
-                description=f"> Le pays a été supprimé avec succès.\n> {raison_text}{INVISIBLE_CHAR}",
-                color=EMBED_COLOR
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            # Log de l'action
-            log_embed = discord.Embed(
-                title="🗑️ | Suppression de pays",
-                description=f"> **Administrateur :** {interaction.user.mention}\n"
-                           f"> **Pays supprimé : ** {pays.name}\n"
-                           f"> **Membres concernés : ** {', '.join([m.mention for m in membres_dirigeants]) if membres_dirigeants else 'Aucun'}\n"
-                           f"> **Continent : ** {continent_role.name if continent_role else 'Non identifié'}\n"
-                           f"> **Rôles retirés : ** {len(auto_roles) + (1 if continent_role else 0) + 1} rôles\n"
-                           f"> {raison_text}{INVISIBLE_CHAR}",
-                color=EMBED_COLOR,
-                timestamp=datetime.datetime.now()
-            )
-            await send_log(interaction.guild, embed=log_embed)
-        except Exception as e:
-            await interaction.followup.send(f"> Erreur lors de la suppression du pays: {e}", ephemeral=True)
-            print(f"Erreur détaillée lors de la suppression du pays: {e}")
-                       f"> **Membres concernés : ** {', '.join([m.mention for m in membres_dirigeants]) if membres_dirigeants else 'Aucun'}\n"
-                       f"> **Continent : ** {continent_role.name if continent_role else 'Non identifié'}\n"
-                       f"> **Rôles retirés : ** {len(auto_roles) + (1 if continent_role else 0) + 1} rôles\n"
-                       f"> {raison_text}{INVISIBLE_CHAR}",
+        # Message de confirmation
+        embed = discord.Embed(
+            description=f"> Le pays {pays.name} a été supprimé avec succès.{INVISIBLE_CHAR}",
+            color=discord.Color.red()
+        )
+        await interaction.followup.send(embed=embed)
+        
+        # Log de l'action
+        log_embed = discord.Embed(
+            title="🗑️ | Suppression de pays",
+            description=(
+                f"> **Administrateur :** {interaction.user.mention}\n"
+                f"> **Pays supprimé : ** {pays.name}\n"
+                f"> **Membres concernés : ** {', '.join([m.mention for m in membres_dirigeants]) if membres_dirigeants else 'Aucun'}\n"
+                f"> **Continent : ** {continent_role.name if continent_role else 'Non identifié'}\n"
+                f"> **Rôles retirés : ** {len(auto_roles) + (1 if continent_role else 0) + 1} rôles\n"
+                f"> {raison_text}{INVISIBLE_CHAR}"
+            ),
             color=EMBED_COLOR,
             timestamp=datetime.datetime.now()
         )
@@ -1657,7 +1581,6 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         
     except Exception as e:
         await interaction.followup.send(f"> Erreur lors de la suppression du pays: {e}", ephemeral=True)
-        print(f"Erreur détaillée lors de la suppression du pays: {e}")
 
 @bot.tree.command(name="modifier_pays", description="Modifie les informations d'un pays existant")
 @app_commands.checks.has_permissions(administrator=True)
