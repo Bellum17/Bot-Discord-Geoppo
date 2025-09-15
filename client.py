@@ -1599,7 +1599,7 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         roles_a_retirer = [
             1413995329656852662, 1413995459827077190, 1413993747515052112, 1413995073632207048,
             1417253039491776733, 1413993786001985567, 1413994327473918142, 1413994277029023854,
-            1413993819292045315, 1413994233622302750, 1410289640170328244
+            1413993819292045315, 1413994233622302750, 1410289640170328244, 1413997188089909398
         ]
         # Rôles de continent
         roles_continents = [1413995502785138799, 1413995608922128394, 1413995735732457473, 1413995874304004157, 1413996176956461086]
@@ -1610,6 +1610,17 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                 role_obj = interaction.guild.get_role(role_id)
                 if role_obj and role_obj in membre.roles:
                     await membre.remove_roles(role_obj)
+            # Retirer les rôles sélectionnés économie, régime politique, gouvernement
+            # On cherche dans pays_log_channel_data ou dans les attributs du rôle si possible
+            # Ici, on tente de retrouver les rôles via les attributs custom (si stockés)
+            economie_id = getattr(pays, 'economie', None)
+            regime_id = getattr(pays, 'regime_politique', None)
+            gouvernement_id = getattr(pays, 'gouvernement', None)
+            for selected_id in [economie_id, regime_id, gouvernement_id]:
+                if selected_id:
+                    role_selected = interaction.guild.get_role(int(selected_id))
+                    if role_selected and role_selected in membre.roles:
+                        await membre.remove_roles(role_selected)
             # Ajouter le rôle 1393344053608710315
             role_ajouter = interaction.guild.get_role(1393344053608710315)
             if role_ajouter and role_ajouter not in membre.roles:
