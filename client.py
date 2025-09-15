@@ -1431,6 +1431,19 @@ async def reset_economie(interaction: discord.Interaction):
             except Exception as e:
                 await interaction2.response.send_message(f"Erreur lors de la suppression de {os.path.basename(file_path)} : {e}", ephemeral=True)
                 return
+        # Supprimer les données économiques dans PostgreSQL
+        import psycopg2, os
+        DATABASE_URL = os.getenv("DATABASE_URL")
+        if DATABASE_URL:
+            try:
+                with psycopg2.connect(DATABASE_URL) as conn:
+                    with conn.cursor() as cur:
+                        for filename in ["balances.json", "balances_backup.json", "loans.json", "transactions.json", "personnel.json"]:
+                            cur.execute("DELETE FROM json_backups WHERE filename = %s", (filename,))
+                    conn.commit()
+                print("[DEBUG] Données économiques supprimées de PostgreSQL.")
+            except Exception as e:
+                print(f"[DEBUG] Erreur lors de la suppression des données économiques dans PostgreSQL : {e}")
         await interaction2.response.edit_message(content="✅ Économie réinitialisée avec succès !", view=None)
 
     async def cancel_callback(interaction2: discord.Interaction):
@@ -1527,6 +1540,46 @@ async def remove_argent(interaction: discord.Interaction, role: discord.Role, mo
     raison="Raison de la suppression du pays (facultatif)"
 )
 async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, raison: str = None):
+    # Supprimer la donnée du pays dans balances, personnel, pays_images (mémoire et fichiers)
+    role_id = str(pays.id)
+    balances.pop(role_id, None)
+    personnel.pop(role_id, None)
+    pays_images.pop(role_id, None)
+    save_balances(balances)
+    save_personnel(personnel)
+    save_pays_images(pays_images)
+    # Supprimer la donnée dans PostgreSQL (balances.json, personnel.json, pays_images.json)
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        try:
+            import json
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    # Charger et mettre à jour balances.json
+                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("balances.json",))
+                    row = cur.fetchone()
+                    if row:
+                        data = json.loads(row[0])
+                        data.pop(role_id, None)
+                        cur.execute("UPDATE json_backups SET content = %s, updated_at = NOW() WHERE filename = %s", (json.dumps(data), "balances.json"))
+                    # Idem pour personnel.json
+                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("personnel.json",))
+                    row = cur.fetchone()
+                    if row:
+                        data = json.loads(row[0])
+                        data.pop(role_id, None)
+                        cur.execute("UPDATE json_backups SET content = %s, updated_at = NOW() WHERE filename = %s", (json.dumps(data), "personnel.json"))
+                    # Idem pour pays_images.json
+                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("pays_images.json",))
+                    row = cur.fetchone()
+                    if row:
+                        data = json.loads(row[0])
+                        data.pop(role_id, None)
+                        cur.execute("UPDATE json_backups SET content = %s, updated_at = NOW() WHERE filename = %s", (json.dumps(data), "pays_images.json"))
+                conn.commit()
+            print(f"[DEBUG] Données du pays {role_id} supprimées de PostgreSQL.")
+        except Exception as e:
+            print(f"[DEBUG] Erreur lors de la suppression des données du pays dans PostgreSQL : {e}")
     """Supprime un pays, son rôle et son salon."""
     await interaction.response.defer(ephemeral=True)
     
