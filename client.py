@@ -1557,7 +1557,10 @@ async def remove_argent(interaction: discord.Interaction, role: discord.Role, mo
 
 @bot.tree.command(name="supprimer_pays", description="Supprime un pays, son rôle et son salon")
 @app_commands.checks.has_permissions(administrator=True)
-## Suppression du décorateur dupliqué et de la ligne orpheline
+
+async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, raison: str = None):
+    """Supprime un pays, son rôle et son salon."""
+    # ...existing code...
 
 @bot.tree.command(name="modifier_pays", description="Modifie les informations d'un pays existant")
 @app_commands.checks.has_permissions(administrator=True)
