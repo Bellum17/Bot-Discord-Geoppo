@@ -1595,28 +1595,42 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
     """Supprime un pays, son rôle et son salon."""
     await interaction.response.defer(ephemeral=True)
     try:
-        # Retirer tous les rôles liés aux membres du pays
-        roles_economie = [1417234199353622569, 1417234220115431434, 1417234887508754584, 1417234944832442621, 1417234931146555433, 1417235038168289290, 1417235052814794853]
-        roles_regime = [1417251476782448843, 1417251480573968525, 1417251556776218654, 1417251565068226691, 1417251568327200828, 1417251571661537320, 1417251574568456232, 1417251577714053170, 1417252579766829076]
-        roles_gouv = [1417254283694313652, 1417254315684528330, 1417254344180371636, 1417254681243025428, 1417254399004246161, 1417254501110251540, 1417254550951428147, 1417254582156791908, 1417254615224680508, 1417254639069560904, 1417254809253314590]
-        all_roles = [pays.id] + roles_economie + roles_regime + roles_gouv
+        # Liste des rôles à retirer aux membres du pays
+        roles_a_retirer = [
+            1413995329656852662, 1413995459827077190, 1413993747515052112, 1413995073632207048,
+            1417253039491776733, 1413993786001985567, 1413994327473918142, 1413994277029023854,
+            1413993819292045315, 1413994233622302750, 1410289640170328244
+        ]
+        # Rôles de continent
+        roles_continents = [1413995502785138799, 1413995608922128394, 1413995735732457473, 1413995874304004157, 1413996176956461086]
+        # Retirer tous les rôles listés + rôles de continent + rôle du pays
         for membre in pays.members:
-            for role_id in all_roles:
+            # Retirer tous les rôles à retirer
+            for role_id in roles_a_retirer + roles_continents + [pays.id]:
                 role_obj = interaction.guild.get_role(role_id)
                 if role_obj and role_obj in membre.roles:
                     await membre.remove_roles(role_obj)
+            # Ajouter le rôle 1393344053608710315
+            role_ajouter = interaction.guild.get_role(1393344053608710315)
+            if role_ajouter and role_ajouter not in membre.roles:
+                await membre.add_roles(role_ajouter)
+        # Supprimer le salon du pays via l'ID associé au rôle (stocké dans pays_log_channel_data)
+        salons_supprimes = []
+        salon_id = pays_log_channel_data.get(str(pays.id))
+        if salon_id:
+            salon = interaction.guild.get_channel(int(salon_id))
+            if salon:
+                await salon.delete(reason=f"Suppression du pays {pays.name}")
+                salons_supprimes.append(salon.name)
+            # Retirer l'association dans le fichier
+            pays_log_channel_data.pop(str(pays.id), None)
+            save_pays_log_channel(pays_log_channel_data)
         # Supprimer le rôle du pays
         await pays.delete(reason=raison or "Suppression du pays")
-        # Supprimer les salons associés (nom du pays dans le nom du salon)
-        salons_supprimes = []
-        for channel in interaction.guild.text_channels:
-            if pays.name.lower() in channel.name.lower():
-                await channel.delete(reason=f"Suppression du pays {pays.name}")
-                salons_supprimes.append(channel.name)
         # Réponse à l'utilisateur
         embed = discord.Embed(
             title="Pays supprimé",
-            description=f"> Le pays {pays.name} et ses rôles/salons associés ont été supprimés.\n> Salons supprimés : {', '.join(salons_supprimes) if salons_supprimes else 'Aucun'}",
+            description=f"> Le pays {pays.name} et son salon associé ont été supprimés.\n> Salon supprimé : {', '.join(salons_supprimes) if salons_supprimes else 'Aucun'}",
             color=discord.Color.red()
         )
         await interaction.followup.send(embed=embed)
