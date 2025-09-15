@@ -1571,6 +1571,13 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                     auto_roles.append(auto_role)
                     await membre.remove_roles(auto_role)
         
+        # Supprimer le salon associé au pays (même nom que le rôle, insensible à la casse)
+        salon_supprime = False
+        for channel in interaction.guild.text_channels:
+            if channel.name.lower() == pays.name.lower():
+                await channel.delete(reason="Suppression du pays et de son salon associé")
+                salon_supprime = True
+                break
         # Supprimer le rôle
         await pays.delete()
         
