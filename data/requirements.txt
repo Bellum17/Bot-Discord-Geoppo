@@ -1,0 +1,10 @@
+discord.py==2.3.2
+python-dotenv==1.0.0
+Pillow
+aiohttp
+geopandas
+matplotlib
+cartopy
+shapely
+numpy
+psycopg2-binary

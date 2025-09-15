@@ -1,0 +1,2328 @@
+"""
+#!/usr/bin/env python3
+Bot Discord pour la gestion d'économie.
+Ce fichier peut être exécuté directement.
+"""
+import os
+import psycopg2
+# === Restauration automatique des fichiers JSON depuis PostgreSQL ===
+def restore_all_json_from_postgres():
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    if not DATABASE_URL:
+        print("DATABASE_URL non défini, restauration PostgreSQL ignorée.")
+        return
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT filename, content FROM json_backups")
+                files = cur.fetchall()
+        for filename, content in files:
+            filepath = os.path.join(DATA_DIR, filename)
+            with open(filepath, "w") as f:
+                f.write(content)
+            print(f"Restauration automatique : {filename}")
+    except Exception as e:
+        print(f"Erreur lors de la restauration automatique depuis PostgreSQL : {e}")
+
+def save_all_json_to_postgres():
+    """Sauvegarde balances, balances_backup, loans, transactions dans PostgreSQL."""
+    import psycopg2
+    import os
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    if not DATABASE_URL:
+        print("DATABASE_URL non défini, sauvegarde PostgreSQL ignorée.")
+        return
+    files = [
+        ("balances.json", os.path.join(DATA_DIR, "balances.json")),
+        ("balances_backup.json", os.path.join(DATA_DIR, "balances_backup.json")),
+        ("loans.json", os.path.join(DATA_DIR, "loans.json")),
+        ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
+    ]
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                for filename, filepath in files:
+                    if os.path.exists(filepath):
+                        with open(filepath, "r") as f:
+                            content = f.read()
+                        cur.execute("""
+                            INSERT INTO json_backups (filename, content, updated_at)
+                            VALUES (%s, %s, NOW())
+                            ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                        """, (filename, content))
+                conn.commit()
+        print("Sauvegarde automatique des fichiers JSON vers PostgreSQL effectuée.")
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde automatique vers PostgreSQL : {e}")
+
+import discord
+from discord.ext import commands
+from discord import app_commands
+import json
+import time
+import datetime
+import asyncio
+import typing
+import random
+import sys
+import atexit
+import signal
+import aiohttp
+import io
+import re
+import geopandas as gpd
+import numpy as np
+from shapely.ops import unary_union
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+from PIL import Image, ImageDraw # type: ignore
+from dotenv import load_dotenv
+from discord.ext.tasks import loop
+
+# Chargement des variables d'environnement
+load_dotenv()
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN:
+    print("ERREUR: DISCORD_TOKEN n'est pas défini dans le fichier .env")
+    print("Créez un fichier .env avec DISCORD_TOKEN=votre_token_discord")
+    sys.exit(1)
+
+# Configuration du répertoire de base et des constantes
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EMBED_COLOR = 0xefe7c5
+IMAGE_URL = "https://zupimages.net/up/21/03/vl8j.png"
+MONNAIE_EMOJI = "<:Monnaie:1412039375063355473>"
+INVISIBLE_CHAR = "⠀"
+
+# Chemins des fichiers de données
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+BALANCE_FILE = os.path.join(DATA_DIR, "balances.json")
+LOG_FILE = os.path.join(DATA_DIR, "log_channel.json")
+MESSAGE_LOG_FILE = os.path.join(DATA_DIR, "message_log_channel.json")
+LOANS_FILE = os.path.join(DATA_DIR, "loans.json")
+PERSONNEL_FILE = os.path.join(DATA_DIR, "personnel.json")
+BALANCE_BACKUP_FILE = os.path.join(DATA_DIR, "balances_backup.json")
+TRANSACTION_LOG_FILE = os.path.join(DATA_DIR, "transactions.json")
+PAYS_LOG_FILE = os.path.join(DATA_DIR, "pays_log_channel.json")
+PAYS_IMAGES_FILE = os.path.join(DATA_DIR, "pays_images.json")
+STATUS_CHANNEL_FILE = os.path.join(DATA_DIR, "status_channel.json")
+MUTE_LOG_FILE = os.path.join(DATA_DIR, "mute_log_channel.json")
+
+# Types de personnel et leurs coûts
+PERSONNEL_TYPES = {
+    "policiers": {"nom": "Policier", "cout_recrutement": 150, "salaire_annuel": 1200},
+    "soldats_actifs": {"nom": "Soldat actif", "cout_recrutement": 1000, "salaire_annuel": 6000},
+    "soldats_genie": {"nom": "Soldat du Génie", "cout_recrutement": 1000, "salaire_annuel": 6000},
+    "soldats_reservistes": {"nom": "Soldat réserviste", "cout_recrutement": 500, "salaire_annuel": 2000},
+    "forces_speciales": {"nom": "Force spéciale", "cout_recrutement": 5000, "salaire_annuel": 10000},
+    "agents_secrets": {"nom": "Agent secret", "cout_recrutement": 3500, "salaire_annuel": 7500}
+}
+
+# Variables globales pour le suivi de l'état du bot
+BOT_START_TIME = time.time()
+BOT_DISCONNECT_HANDLED = False
+
+# Configuration des intents Discord
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+intents.guilds = True
+
+# Définition d'une classe pour la pagination
+class PaginationView(discord.ui.View):
+    """Une vue pour la pagination des embeds avec boutons."""
+    
+    def __init__(self, pages, author_id, timeout=60):
+        super().__init__(timeout=timeout)
+        self.pages = pages
+        self.author_id = author_id
+        self.current_page = 0
+    
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.secondary)
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Page précédente."""
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Vous n'êtes pas autorisé à utiliser ces boutons.", ephemeral=True)
+            return
+
+        self.current_page = max(0, self.current_page - 1)
+        await interaction.response.edit_message(embed=self.pages[self.current_page])
+    
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.secondary)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Page suivante."""
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Vous n'êtes pas autorisé à utiliser ces boutons.", ephemeral=True)
+            return
+
+        self.current_page = min(len(self.pages) - 1, self.current_page + 1)
+        await interaction.response.edit_message(embed=self.pages[self.current_page])
+
+# Définition de la classe du bot
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix="!", intents=intents)
+
+    async def setup_hook(self):
+        # Suppression de toutes les commandes distantes puis resynchronisation propre
+        print("Synchronisation globale des commandes slash (tous les serveurs)...")
+        try:
+            cmds = await self.tree.sync()
+            print(f"Commandes globales synchronisées ({len(cmds)}) : {[c.name for c in cmds]}")
+        except Exception as e:
+            print(f"Erreur lors de la synchronisation globale : {e}")
+        
+        # Démarrer les tâches planifiées
+        auto_save_economy.start()
+        verify_and_fix_balances.start()
+        
+        print("Bot prêt et tâches planifiées démarrées.")
+
+# Création de l'instance du bot
+bot = MyBot()
+
+# Synchronisation forcée des commandes slash sur le serveur de test à chaque démarrage
+@bot.event
+async def on_ready():
+    print(f'Bot connecté en tant que {bot.user.name}')
+    GUILD_ID = 1393301496283795640
+    guild = discord.Object(id=GUILD_ID)
+    try:
+        cmds = await bot.tree.sync(guild=guild)
+        print(f"Commandes synchronisées sur le serveur {GUILD_ID} ({len(cmds)}) : {[c.name for c in cmds]}")
+    except Exception as e:
+        print(f"Erreur lors de la synchronisation des commandes : {e}")
+    await restore_mutes_on_start()
+    await verify_economy_data(bot)
+
+# Variables globales pour les données
+balances = {}
+log_channel_data = {}
+# Variables globales pour les données
+balances = {}
+log_channel_data = {}
+message_log_channel_data = {}
+loans = []
+personnel = {}
+pays_log_channel_data = {}
+pays_images = {}
+status_channel_data = {}
+status_message_id = None
+mute_log_channel_data = {}
+
+# Chargement des balances et autres données après la définition de la fonction
+# (L'appel à load_all_data() est déplacé après la définition de la fonction)
+def format_number(number):
+    """Formate un nombre pour l'affichage avec séparateurs de milliers."""
+    if isinstance(number, int):
+        return f"{number:,}".replace(",", " ")
+    return str(number)
+
+# ===== FONCTIONS DE GESTION DES DONNÉES =====
+
+# Fonction pour charger toutes les données
+def load_all_data():
+    """Charge toutes les données nécessaires au démarrage."""
+    global balances, log_channel_data, message_log_channel_data, loans, personnel, pays_log_channel_data, pays_images, status_channel_data, status_message_id, mute_log_channel_data
+    
+    # Chargement de toutes les données
+    balances.update(load_balances())
+    log_channel_data.update(load_log_channel())
+    message_log_channel_data.update(load_message_log_channel())
+    loans.extend(load_loans())
+    personnel.update(load_personnel())
+    pays_log_channel_data.update(load_pays_log_channel())
+    pays_images.update(load_pays_images())
+    status_channel_data.update(load_status_channel())
+# Fonction pour charger les données du canal de statut
+def load_status_channel():
+    if not os.path.exists(STATUS_CHANNEL_FILE):
+        with open(STATUS_CHANNEL_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(STATUS_CHANNEL_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement du canal de statut: {e}")
+        return {}
+    status_message_id = load_status_message()
+    mute_log_channel_data.update(load_mute_log_channel())
+    
+    print("Chargement des données terminé")
+
+def load_pays_images():
+    """Charge les images des pays depuis le fichier."""
+    if not os.path.exists(PAYS_IMAGES_FILE):
+        with open(PAYS_IMAGES_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(PAYS_IMAGES_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des images de pays: {e}")
+        return {}
+
+def save_pays_images(data):
+    """Sauvegarde les images des pays dans le fichier."""
+    try:
+        with open(PAYS_IMAGES_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des images de pays: {e}")
+
+
+
+def load_balances():
+    """Charge les données des balances depuis le fichier."""
+    balances_data = {}
+    
+    # Essayer de charger le fichier principal
+    try:
+        if os.path.exists(BALANCE_FILE):
+            with open(BALANCE_FILE, "r") as f:
+                balances_data = json.load(f)
+                print(f"Balances chargées depuis {BALANCE_FILE}: {len(balances_data)} entrées")
+    except Exception as e:
+        print(f"Erreur lors du chargement des balances principales: {e}")
+    
+    # Si le fichier principal est vide ou corrompu, essayer le backup
+    if not balances_data and os.path.exists(BALANCE_BACKUP_FILE):
+        try:
+            with open(BALANCE_BACKUP_FILE, "r") as f:
+                balances_data = json.load(f)
+                print(f"Balances restaurées depuis la sauvegarde: {len(balances_data)} entrées")
+        except Exception as e:
+            print(f"Erreur lors du chargement de la sauvegarde des balances: {e}")
+    
+    # Si aucun fichier n'existe, créer un fichier vide
+    if not balances_data:
+        balances_data = {}
+        print("Création d'un nouveau fichier de balances")
+    
+    # Créer les fichiers s'ils n'existent pas
+    if not os.path.exists(BALANCE_FILE):
+        with open(BALANCE_FILE, "w") as f:
+            json.dump(balances_data, f)
+    if not os.path.exists(BALANCE_BACKUP_FILE):
+        with open(BALANCE_BACKUP_FILE, "w") as f:
+            json.dump(balances_data, f)
+    
+    return balances_data
+
+def save_balances(balances_data):
+    """Sauvegarde les balances dans le fichier."""
+    # Sauvegarde principale
+    try:
+        with open(BALANCE_FILE, "w") as f:
+            json.dump(balances_data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des balances: {e}")
+    
+    # Sauvegarde de secours (moins fréquente pour éviter l'usure du disque)
+    if random.random() < 0.2:  # 20% de chance de faire un backup
+        try:
+            with open(BALANCE_BACKUP_FILE, "w") as f:
+                json.dump(balances_data, f)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde de secours des balances: {e}")
+
+def load_log_channel():
+    """Charge les données du canal de log."""
+    if not os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(LOG_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des logs: {e}")
+        return {}
+
+def save_log_channel(data):
+    """Sauvegarde les données du canal de log."""
+    try:
+        with open(LOG_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des logs: {e}")
+
+def load_message_log_channel():
+    """Charge les données du canal de log des messages."""
+    if not os.path.exists(MESSAGE_LOG_FILE):
+        with open(MESSAGE_LOG_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(MESSAGE_LOG_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des logs de messages: {e}")
+        return {}
+
+def save_message_log_channel(data):
+    """Sauvegarde les données du canal de log des messages."""
+    try:
+        with open(MESSAGE_LOG_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des logs de messages: {e}")
+
+def load_loans():
+    """Charge les données des prêts."""
+    if not os.path.exists(LOANS_FILE):
+        with open(LOANS_FILE, "w") as f:
+            json.dump([], f)
+    try:
+        with open(LOANS_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des prêts: {e}")
+        return []
+
+def save_loans(loans_data):
+    """Sauvegarde les données des prêts."""
+    try:
+        with open(LOANS_FILE, "w") as f:
+            json.dump(loans_data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des prêts: {e}")
+
+def load_personnel():
+    """Charge les données du personnel."""
+    if not os.path.exists(PERSONNEL_FILE):
+        with open(PERSONNEL_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(PERSONNEL_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement du personnel: {e}")
+        return {}
+
+def save_personnel(personnel_data):
+    """Sauvegarde les données du personnel."""
+    try:
+        with open(PERSONNEL_FILE, "w") as f:
+            json.dump(personnel_data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde du personnel: {e}")
+
+def load_pays_log_channel():
+    """Charge les données du canal de log des pays."""
+    if not os.path.exists(PAYS_LOG_FILE):
+        with open(PAYS_LOG_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(PAYS_LOG_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement du canal de log des pays: {e}")
+        return {}
+
+def save_pays_log_channel(data):
+    """Sauvegarde les données du canal de log des pays."""
+    try:
+        with open(PAYS_LOG_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde du canal de log des pays: {e}")
+
+def save_status_channel(data):
+    """Sauvegarde les données du canal de notification de statut."""
+    try:
+        with open(STATUS_CHANNEL_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde du canal de statut: {e}")
+
+def log_transaction(from_id, to_id, amount, transaction_type, guild_id):
+    """
+    Journalise une transaction dans l'historique, sans modifier les balances.
+    Les balances sont déjà modifiées par les commandes correspondantes.
+    """
+    transaction = {
+        "from_id": from_id,
+        "to_id": to_id,
+        "amount": amount,
+        "timestamp": int(time.time()),
+        "type": transaction_type,
+        "guild_id": guild_id
+    }
+    
+    # Charger les transactions existantes
+    transactions = []
+    if os.path.exists(TRANSACTION_LOG_FILE):
+        try:
+            with open(TRANSACTION_LOG_FILE, "r") as f:
+                transactions = json.load(f)
+        except json.JSONDecodeError:
+            transactions = []
+    
+    # Ajouter la nouvelle transaction
+    transactions.append(transaction)
+    
+    # Limiter l'historique à 1000 transactions
+    if len(transactions) > 1000:
+        transactions = transactions[-1000:]
+    
+    # Sauvegarder les transactions
+    try:
+        with open(TRANSACTION_LOG_FILE, "w") as f:
+            json.dump(transactions, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde de la transaction: {e}")
+    
+    # Ne PAS modifier les balances ici, car elles sont déjà modifiées par les commandes
+
+# ===== FONCTION DE LOG =====
+
+# Fonction pour envoyer un log au format embed
+async def send_log(guild, message=None, embed=None):
+    """
+    Envoie un message dans le salon de log économique du serveur.
+    Prend soit un message texte simple, soit un embed déjà formaté.
+    """
+    log_channel_id = log_channel_data.get(str(guild.id))
+    if log_channel_id:
+        channel = guild.get_channel(int(log_channel_id))
+        if channel:
+            try:
+                # Si un embed est déjà fourni, l'utiliser directement
+                if embed:
+                    await channel.send(embed=embed)
+                # Sinon créer un embed à partir du message texte
+                elif message:
+                    log_embed = discord.Embed(
+                        description=f"{message}{INVISIBLE_CHAR}",
+                        color=EMBED_COLOR,
+                        timestamp=datetime.datetime.now()
+                    )
+                    await channel.send(embed=log_embed)
+            except Exception as e:
+                print(f"Erreur lors de l'envoi du log: {e}")
+
+# Fonction pour envoyer un log de pays
+async def send_pays_log(guild, embed):
+    """Envoie un embed dans le salon de log des pays du serveur."""
+    pays_log_channel_id = pays_log_channel_data.get(str(guild.id))
+    if pays_log_channel_id:
+        channel = guild.get_channel(int(pays_log_channel_id))
+        if channel:
+            try:
+                await channel.send(embed=embed)
+            except Exception as e:
+                print(f"Erreur lors de l'envoi du log de pays: {e}")
+
+# Fonction pour envoyer un log de mute
+async def send_mute_log(guild, embed):
+    """Envoie un embed dans le salon de log des sanctions mute/unmute du serveur."""
+    mute_log_channel_id = mute_log_channel_data.get(str(guild.id))
+    if mute_log_channel_id:
+        channel = guild.get_channel(int(mute_log_channel_id))
+        if channel:
+            try:
+                await channel.send(embed=embed)
+            except Exception as e:
+                print(f"Erreur lors de l'envoi du log mute: {e}")
+
+# ===== TÂCHES PLANIFIÉES =====
+
+@loop(minutes=10)
+async def auto_save_economy():
+    """Sauvegarde automatique de l'économie."""
+    try:
+        print("Sauvegarde automatique de l'économie...")
+        save_balances(balances)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde automatique: {e}")
+
+@loop(hours=12)
+async def verify_and_fix_balances():
+    """Vérifie et corrige les balances périodiquement."""
+    try:
+        print("Vérification périodique des balances...")
+        
+        # Recherche des montants anormalement élevés
+        abnormal_balances = {}
+        for role_id, amount in balances.items():
+            if len(role_id) >= 18 and amount > 3000000000:  # Plus de 3 milliards est suspect
+                corrected_amount = amount // 3
+                abnormal_balances[role_id] = (amount, corrected_amount)
+                balances[role_id] = corrected_amount
+        
+        if abnormal_balances:
+            print(f"CORRECTION PÉRIODIQUE: {len(abnormal_balances)} soldes anormalement élevés ont été corrigés")
+            for role_id, (old_amount, new_amount) in abnormal_balances.items():
+                print(f"  - ID {role_id}: {old_amount} -> {new_amount}")
+            save_balances(balances)
+            
+    except Exception as e:
+        print(f"Erreur lors de la vérification périodique des balances: {e}")
+
+# ===== GESTIONNAIRES DE SIGNAUX =====
+
+def signal_handler(sig, frame):
+    """Gestionnaire de signal pour la fermeture propre."""
+    print(f"Signal {sig} reçu, fermeture en cours...")
+    
+    # Sauvegarde des données importantes
+    try:
+        save_balances(balances)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde finale: {e}")
+    
+    # Attendre un peu pour permettre la sauvegarde des données
+    time.sleep(1)
+    
+    # Forcer la sortie sans attendre d'opérations asynchrones
+    sys.exit(0)
+
+def exit_handler():
+    """Gestionnaire pour atexit."""
+    global BOT_DISCONNECT_HANDLED
+    if not BOT_DISCONNECT_HANDLED:
+        print("Fermeture du bot en cours...")
+        BOT_DISCONNECT_HANDLED = True
+        
+        # Sauvegarde des données importantes
+        try:
+            save_balances(balances)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde finale: {e}")
+
+def verify_economy_data(bot):
+    """Vérifie l'intégrité des données économiques au démarrage."""
+    print("Vérification des données économiques...")
+    
+    # Vérifier les balances négatives
+    negative_balances = {}
+    for entity_id, amount in balances.items():
+        if amount < 0:
+            negative_balances[entity_id] = amount
+            # Correction automatique
+            balances[entity_id] = 0
+    
+    if negative_balances:
+        print(f"AVERTISSEMENT: {len(negative_balances)} soldes négatifs ont été corrigés")
+        save_balances(balances)
+    
+    # Correction des montants anormalement élevés
+    abnormal_balances = {}
+    for role_id, amount in balances.items():
+        # Vérifier si c'est un rôle et non un utilisateur (les IDs de rôle ont généralement 18-19 chiffres)
+        if len(role_id) >= 18 and amount > 3000000000:  # Plus de 3 milliards est suspect
+            # Calcul de la valeur normale (divisé par 3 car semble être triplé)
+            corrected_amount = amount // 3
+            abnormal_balances[role_id] = (amount, corrected_amount)
+            balances[role_id] = corrected_amount
+            print(f"Correction de balance pour ID {role_id}: {amount} -> {corrected_amount}")
+    
+    if abnormal_balances:
+        print(f"AVERTISSEMENT: {len(abnormal_balances)} soldes anormalement élevés ont été corrigés")
+        save_balances(balances)
+    
+    print("Vérification des données économiques terminée")
+
+def verify_and_fix_budgets():
+    """Vérifie et corrige les budgets au démarrage du bot."""
+    print("Vérification des budgets...")
+    
+    # Identifier les budgets problématiques (trop élevés)
+    problematic_budgets = []
+    for user_id, amount in balances.items():
+        # Si le budget est supérieur à 2 milliards, c'est probablement une erreur
+        if amount > 2000000000:
+            problematic_budgets.append((user_id, amount))
+    
+    # Corriger les budgets problématiques
+    for user_id, amount in problematic_budgets:
+        print(f"Budget anormal détecté - ID: {user_id}, Montant: {amount}")
+        
+    print(f"Vérification terminée: {len(problematic_budgets)} budgets anormaux détectés")
+
+# ===== ÉVÉNEMENTS DU BOT =====
+
+@bot.event
+async def on_message_delete(message):
+    """Journalise les messages supprimés."""
+    if message.guild is None:  # Ignore DM messages
+        return
+    # Ignore si le message vient d'un salon de logs
+    log_channels = []
+    log_channel_id = log_channel_data.get(str(message.guild.id))
+    msg_log_channel_id = message_log_channel_data.get(str(message.guild.id))
+    if log_channel_id:
+        log_channels.append(int(log_channel_id))
+    if msg_log_channel_id:
+        log_channels.append(int(msg_log_channel_id))
+    if message.channel.id in log_channels:
+        return
+    channel = None
+    msg_log_channel_id = message_log_channel_data.get(str(message.guild.id))
+    if msg_log_channel_id:
+        channel = message.guild.get_channel(int(msg_log_channel_id))
+    if channel:
+        try:
+            embed = discord.Embed(
+                title="Message supprimé",
+                description=f"**Auteur :** {message.author.mention}\n**Salon :** {message.channel.mention}\n**Contenu :**\n{message.content}",
+                color=discord.Color.red()
+            )
+            await channel.send(embed=embed)
+        except Exception as e:
+            print(f"Erreur lors de la journalisation d'un message supprimé: {e}")
+
+@bot.event
+async def on_message_edit(before, after):
+    """Journalise les messages modifiés."""
+    if before.guild is None:  # Ignore DM messages
+        return
+    if before.author.bot:
+        return
+    log_channels = []
+    log_channel_id = log_channel_data.get(str(before.guild.id))
+    msg_log_channel_id = message_log_channel_data.get(str(before.guild.id))
+    if log_channel_id:
+        log_channels.append(int(log_channel_id))
+    if msg_log_channel_id:
+        log_channels.append(int(msg_log_channel_id))
+    if before.channel.id in log_channels:
+        return
+    # Fonction utilitaire pour obtenir le salon de log des messages
+    def get_message_log_channel(guild):
+        msg_log_channel_id = message_log_channel_data.get(str(guild.id))
+        if msg_log_channel_id:
+            return guild.get_channel(int(msg_log_channel_id))
+        return None
+
+    channel = get_message_log_channel(before.guild)
+    if channel:
+        try:
+            embed = discord.Embed(
+                title="Message modifié",
+                description=f"**Auteur :** {before.author.mention}\n**Salon :** {before.channel.mention}\n**Avant :**\n{before.content}\n**Après :**\n{after.content}",
+                color=discord.Color.orange()
+            )
+            await channel.send(embed=embed)
+        except Exception as e:
+            print(f"Erreur lors de la journalisation d'un message modifié: {e}")
+
+@bot.event
+async def on_command_error(ctx, error):
+    """Gère les erreurs de commandes."""
+    print(f"Erreur de commande: {error}")
+
+@bot.event
+async def on_error(event, *args, **kwargs):
+    """Gère les erreurs d'événements."""
+    print(f"Erreur dans l'événement {event}: {sys.exc_info()[0]}")
+
+# ===== COMMANDES DE BASE =====
+
+@bot.tree.command(name="setlogeconomy", description="Définit le salon de logs pour l'économie")
+@app_commands.checks.has_permissions(administrator=True)
+async def setlogeconomy(interaction: discord.Interaction, channel: discord.TextChannel):
+    log_channel_data[str(interaction.guild.id)] = channel.id
+    save_log_channel(log_channel_data)
+    embed = discord.Embed(
+        description=f"> Salon de logs défini sur {channel.mention}.{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    embed.set_image(url=IMAGE_URL)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="setlogmessage", description="Définit le salon de logs pour les messages")
+@app_commands.checks.has_permissions(administrator=True)
+async def setlogmessage(interaction: discord.Interaction, channel: discord.TextChannel):
+    message_log_channel_data[str(interaction.guild.id)] = channel.id
+    save_message_log_channel(message_log_channel_data)
+    embed = discord.Embed(
+        description=f"> Salon de logs de messages défini sur {channel.mention}.{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    embed.set_image(url=IMAGE_URL)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="setstatus", description="Définit le statut du bot (En Ligne, En Direct, Hors-Ligne)")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    status="Type de statut à afficher", 
+    message="Message d'activité à afficher (optionnel)",
+    notification="Envoyer une notification dans le salon de status (optionnel)"
+)
+@app_commands.choices(status=[
+    discord.app_commands.Choice(name="En Ligne", value="online"),
+    discord.app_commands.Choice(name="En Direct", value="streaming"),
+    discord.app_commands.Choice(name="Hors Ligne", value="offline"),
+    discord.app_commands.Choice(name="Ne pas déranger", value="dnd")  # <-- Ajout ici
+])
+async def setstatus(interaction: discord.Interaction, status: str, message: str = "Développer le Serveur", notification: bool = False):
+    """Définit le statut du bot."""
+    await interaction.response.defer(ephemeral=True)
+    global status_message_id
+    
+    try:
+        # Récupérer l'horodatage actuel pour le format <t:timestamp:R>
+        current_timestamp = int(time.time())
+        
+        if status == "online":
+            # Statut En Ligne
+            await bot.change_presence(
+                activity=discord.Game(name=message),
+                status=discord.Status.online
+            )
+            status_icon = "<:Statuts_EnLigne:1413119886426771496>"
+            status_name = "En Ligne"
+            status_color = 0x57F287  # Couleur verte
+            fonctionnement = "Normal"
+        elif status == "streaming":
+            # Statut En Direct
+            streaming_activity = discord.Streaming(
+                name=message,
+                url="https://www.twitch.tv/discord"
+            )
+            await bot.change_presence(
+                activity=streaming_activity,
+                status=discord.Status.online
+            )
+            status_icon = "<:Status_Direct:1413119409173561354>"
+            status_name = "En Direct"
+            status_color = 0x593a93  # Couleur personnalisée pour En Direct
+            fonctionnement = "Normal"
+        elif status == "offline":
+            # Statut Hors Ligne (invisible)
+            await bot.change_presence(
+                activity=None,
+                status=discord.Status.invisible
+            )
+            status_icon = "<:Statuts_HorsLigne:1413119891795476622>"
+            status_name = "Hors Ligne"
+            status_color = 0xE74C3C  # Couleur rouge
+            fonctionnement = "Indisponible"
+        elif status == "dnd":
+            # Statut Ne pas déranger
+            await bot.change_presence(
+                activity=discord.Game(name="Modification(s) en cours"),
+                status=discord.Status.dnd
+            )
+            status_icon = "<:Status_NePasDeranger:1414411414570926120>"
+            status_name = "Ne pas déranger"
+            status_color = 0xED4245  # Couleur rouge Discord
+            fonctionnement = "Modification(s) en cours"
+            message = "Modification(s) en cours"
+        else:
+            await interaction.followup.send("> Statut non reconnu. Utilisez En Ligne, En Direct, Hors Ligne ou Ne pas déranger.", ephemeral=True)
+            return
+        
+        log_embed = discord.Embed(
+            description=(
+                f"> **Administrateur:** {interaction.user.mention}\n"
+                f"> **Nouveau statut:** {status_name}\n"
+                f"> **Message d'activité:** {message if message and status != 'offline' else 'Aucun'}{INVISIBLE_CHAR}"
+            ),
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        await send_log(interaction.guild, embed=log_embed)
+        
+        # Si la notification est activée, envoyer un message dans le salon de statut
+        if notification:
+            # Récupérer le salon de status
+            status_channel_id = status_channel_data.get(str(interaction.guild.id))
+            if status_channel_id:
+                status_channel = interaction.guild.get_channel(int(status_channel_id))
+                if status_channel:
+                    # Supprimer l'ancien message de statut s'il existe
+                    if status_message_id:
+                        try:
+                            old_message = await status_channel.fetch_message(status_message_id)
+                            await old_message.delete()
+                        except discord.NotFound:
+                            pass  # Le message a déjà été supprimé
+                        except Exception as e:
+                            print(f"Erreur lors de la suppression de l'ancien message de statut: {e}")
+                    
+                    # Créer un embed de notification sans mentionner qui a fait le changement
+                    status_embed = discord.Embed(
+                        title=f"{status_icon} | Status : {status_name}",
+                        description=f"> **État actuel:** {fonctionnement}\n"
+                                   f"> **Dernière mise à jour:** <t:{current_timestamp}:R>{INVISIBLE_CHAR}",
+                        color=status_color
+                    )
+                    
+                    status_embed.set_image(url=IMAGE_URL)
+                    new_message = await status_channel.send(embed=status_embed)
+                    status_message_id = new_message.id
+                else:
+                    await interaction.followup.send("> Salon de status non trouvé. Veuillez configurer un salon avec /setstatus_channel", ephemeral=True)
+            else:
+                await interaction.followup.send("> Aucun salon de status configuré. Veuillez configurer un salon avec /setstatus_channel", ephemeral=True)
+        
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors du changement de statut: {e}", ephemeral=True)
+
+# Ajouter un fichier JSON pour stocker l'ID du dernier message de statut
+STATUS_MESSAGE_FILE = os.path.join(DATA_DIR, "status_message.json")
+
+# Fonction pour charger l'ID du message de statut
+def load_status_message():
+    """Charge l'ID du dernier message de statut."""
+    global status_message_id
+    if not os.path.exists(STATUS_MESSAGE_FILE):
+        with open(STATUS_MESSAGE_FILE, "w") as f:
+            json.dump({"message_id": None}, f)
+        return None
+    try:
+        with open(STATUS_MESSAGE_FILE, "r") as f:
+            data = json.load(f)
+            status_message_id = data.get("message_id")
+            return status_message_id
+    except Exception as e:
+        print(f"Erreur lors du chargement de l'ID du message de statut: {e}")
+        return None
+
+# Fonction pour sauvegarder l'ID du message de statut
+def save_status_message():
+    """Sauvegarde l'ID du dernier message de statut."""
+    try:
+        with open(STATUS_MESSAGE_FILE, "w") as f:
+            json.dump({"message_id": status_message_id}, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde de l'ID du message de statut: {e}")
+
+# Modifier la fonction on_ready pour inclure l'envoi d'un nouveau message de statut et la suppression de l'ancien
+@bot.event
+async def on_ready():
+    print(f'Bot connecté en tant que {bot.user.name}')
+    await restore_mutes_on_start()
+
+# Fonction utilitaire pour convertir les majuscules en caractères spéciaux
+def is_valid_image_url(url):
+    """Vérifie si l'URL pointe vers une image valide."""
+    if not url:
+        return False
+    
+    # Vérification simple des extensions d'image communes
+    image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+    url_lower = url.lower()
+    
+    # Vérifier si l'URL se termine par une extension d'image
+    for ext in image_extensions:
+        if url_lower.endswith(ext):
+            return True
+    
+    # Vérifier si c'est une URL d'hébergement d'images connue
+    image_hosts = ['imgur.com', 'i.imgur.com', 'zupimages.net', 'tenor.com', 
+                   'media.discordapp.net', 'cdn.discordapp.com']
+    
+    for host in image_hosts:
+        if host in url_lower:
+            return True
+    
+    # URLs qui contiennent des paramètres mais sont des images
+    if re.search(r'\.(jpg|jpeg|png|gif|webp|bmp)(\?|#)', url_lower):
+        return True
+    
+    return False
+
+def convert_to_bold_letters(text):
+    """Convertit les lettres majuscules en caractères gras spéciaux."""
+    bold_letters = {
+        'A': '𝗔', 'B': '𝗕', 'C': '𝗖', 'D': '𝗗', 'E': '𝗘', 'F': '𝗙', 'G': '𝗚', 'H': '𝗛', 'I': '𝗜',
+        'J': '𝗝', 'K': '𝗞', 'L': '𝗟', 'M': '𝗠', 'N': '𝗡', 'O': '𝗢', 'P': '𝗣', 'Q': '𝗤', 'R': '𝗥',
+        'S': '𝗦', 'T': '𝗧', 'U': '𝗨', 'V': '𝗩', 'W': '𝗪', 'X': '𝗫', 'Y': '𝗬', 'Z': '𝗭'
+    }
+    
+    result = ""
+    for char in text:
+        if char.isupper() and char in bold_letters:
+            result += bold_letters[char]
+        else:
+            result += char
+    
+    return result
+
+# Pour la commande creer_pays, ajouter ces rôles à la gestion
+@bot.tree.command(name="creer_pays", description="Crée un nouveau pays avec son rôle et son salon")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    nom="Nom du pays",
+    budget="Budget initial du pays",
+    pib="PIB du pays (valeur informative)",
+    continent="Continent auquel appartient le pays",
+    categorie="Catégorie où créer le salon du pays",
+    dirigeant="Utilisateur qui sera le dirigeant du pays",
+    drapeau_salon="Emoji à ajouter au début du nom du pays (facultatif)",
+    drapeau_perso="Emoji personnalisé du pays pour les messages et l'icône du rôle (facultatif)",
+    couleur="Code couleur hexadécimal pour le rôle (ex: #FF0000 pour rouge, facultatif)",
+    image="URL d'une image représentant le pays (facultatif)",
+    nom_salon_secret="Nom du salon secret à créer (facultatif)",
+    categorie_secret="Catégorie où créer le salon secret (facultatif)"
+)
+@app_commands.choices(continent=[
+    discord.app_commands.Choice(name="Europe", value="1413995502785138799"),
+    discord.app_commands.Choice(name="Afrique", value="1413995608922128394"),
+    discord.app_commands.Choice(name="Amérique", value="1413995735732457473"),
+    discord.app_commands.Choice(name="Asie", value="1413995874304004157"),
+    discord.app_commands.Choice(name="Océanie", value="1413996176956461086")
+])
+async def creer_pays(
+    interaction: discord.Interaction, 
+    nom: str, 
+    budget: int, 
+    pib: int,
+    continent: str,
+    categorie: discord.CategoryChannel,
+    dirigeant: discord.Member,
+    drapeau_salon: str = None,
+    drapeau_perso: str = None,
+    couleur: str = None,
+    image: str = None,
+    nom_salon_secret: str = None,
+    categorie_secret: discord.CategoryChannel = None
+):
+    """Crée un nouveau pays avec son rôle et son salon."""
+    await interaction.response.defer()
+    
+    # Vérifier que le budget est positif
+    if budget <= 0:
+        await interaction.followup.send("> Le budget initial doit être positif.", ephemeral=True)
+        return
+    
+    # Image par défaut ou personnalisée
+    pays_image = IMAGE_URL
+    if image and is_valid_image_url(image):
+        pays_image = image
+    
+    # Emoji par défaut ou personnalisé
+    emoji_pays = drapeau_salon if drapeau_salon else ""
+    emoji_message = drapeau_perso if drapeau_perso else "🏛️"
+    
+    # IDs des rôles à gérer
+    ROLE_JOUEUR_ID = 1410289640170328244
+    ROLE_NON_JOUEUR_ID = 1393344053608710315
+    
+    # Liste des rôles à ajouter automatiquement
+    auto_roles_ids = [
+        1413995329656852662,
+        1413997188089909398,
+        1413993747515052112,
+        1413995073632207048,
+        1413993786001985567,
+        1413994327473918142,
+        1413994277029023854,
+        1413993819292045315,
+        1413994233622302750,
+        1413995459827077190,
+        ROLE_JOUEUR_ID  # Ajouter le rôle de joueur
+    ]
+    
+    try:
+        # Obtenir le rôle de continent pour positionner le nouveau rôle
+        continent_role = interaction.guild.get_role(int(continent))
+        if not continent_role:
+            await interaction.followup.send(f"> Erreur: Rôle de continent introuvable (ID: {continent}).", ephemeral=True)
+            return
+            
+        # Créer le rôle
+        role_name = f"{emoji_pays}・❝ ｢ {nom} ｣ ❞" if emoji_pays else f"❝ ｢ {nom} ｣ ❞"
+        
+        # Gestion de la couleur
+        role_kwargs = {"name": role_name}
+        if couleur:
+            try:
+                if couleur.startswith('#'):
+                    couleur = couleur[1:]
+                color_value = int(couleur, 16)
+                role_kwargs["color"] = discord.Color(color_value)
+            except ValueError:
+                pass  # Utiliser la couleur par défaut
+        
+        # Créer le rôle
+        role = await interaction.guild.create_role(**role_kwargs)
+        
+        # Si un emoji personnalisé est fourni, essayer de l'appliquer comme icône du rôle
+        if drapeau_perso:
+            try:
+                # Vérifier si c'est un emoji personnalisé
+                emoji_id = None
+                if drapeau_perso.startswith('<') and drapeau_perso.endswith('>'):
+                    # Format <:name:id>
+                    emoji_parts = drapeau_perso.strip('<>').split(':')
+                    if len(emoji_parts) >= 3:
+                        emoji_id = int(emoji_parts[2])
+                
+                if emoji_id:
+                    # Récupérer l'emoji du serveur
+                    emoji = await interaction.guild.fetch_emoji(emoji_id)
+                    if emoji:
+                        # Récupérer l'image de l'emoji
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(str(emoji.url)) as resp:
+                                if resp.status == 200:
+                                    emoji_bytes = await resp.read()
+                                    
+                                    # Essayer d'appliquer l'emoji comme icône du rôle
+                                    try:
+                                        await role.edit(display_icon=emoji_bytes)
+                                    except discord.Forbidden:
+                                        await interaction.followup.send("> Note: Impossible d'appliquer l'emoji comme icône de rôle. Cette fonctionnalité nécessite des boosts de serveur.", ephemeral=True)
+                                    except Exception as e:
+                                        print(f"Erreur lors de l'application de l'icône de rôle: {e}")
+            except Exception as e:
+                print(f"Erreur lors du traitement de l'emoji personnalisé: {e}")
+        
+        # Trouver la position correcte pour le nouveau rôle de pays
+        try:
+            # Récupérer tous les rôles du serveur
+            server_roles = await interaction.guild.fetch_roles()
+            
+            # Position du rôle de continent sélectionné
+            continent_position = continent_role.position
+            
+            # Positionner le nouveau rôle DIRECTEMENT sous le continent sélectionné
+            positions = {role: continent_position}
+            
+            # Appliquer les nouvelles positions
+            await interaction.guild.edit_role_positions(positions)
+            print(f"Rôle de pays positionné juste en dessous du continent {continent_role.name}")
+        except Exception as e:
+            print(f"Erreur lors du positionnement du rôle: {e}")
+        
+        # Créer le salon principal
+        formatted_name = convert_to_bold_letters(nom)
+        channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-')}"
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            role: discord.PermissionOverwrite(
+                read_messages=True, send_messages=True, read_message_history=True,
+                embed_links=True, attach_files=True, add_reactions=True
+            )
+        }
+        channel = await interaction.guild.create_text_channel(
+            name=channel_name,
+            category=categorie,
+            overwrites=overwrites
+        )
+
+        # Créer le salon secret si un nom est fourni et une catégorie spécifiée
+        secret_channel = None
+        if nom_salon_secret and categorie_secret:
+            formatted_secret_name = convert_to_bold_letters(nom_salon_secret)
+            secret_channel_name = f"【{emoji_pays}】・{formatted_secret_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_secret_name.lower().replace(' ', '-')}"
+            secret_overwrites = {
+                interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                role: discord.PermissionOverwrite(
+                    read_messages=True,
+                    manage_webhooks=True,
+                    manage_messages=True
+                )
+            }
+            secret_channel = await interaction.guild.create_text_channel(
+                name=secret_channel_name,
+                category=categorie_secret,
+                overwrites=secret_overwrites
+            )
+        
+        # Gérer les données du pays
+        role_id = str(role.id)
+        
+        # Attribuer le budget au pays
+        balances[role_id] = budget
+        
+        # ID des rôles spéciaux de joueur et non-joueur
+        role_joueur_id = 1410289640170328244
+        role_non_joueur_id = 1393344053608710315
+        
+        # Attribuer les rôles au dirigeant
+        await dirigeant.add_roles(role)
+        await dirigeant.add_roles(continent_role)
+        
+        # Ajouter le rôle joueur et retirer le rôle non-joueur
+        role_joueur = interaction.guild.get_role(role_joueur_id)
+        role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
+        
+        if role_joueur:
+            await dirigeant.add_roles(role_joueur)
+        
+        if role_non_joueur and role_non_joueur in dirigeant.roles:
+            await dirigeant.remove_roles(role_non_joueur)
+        
+        # Ajouter tous les rôles automatiques
+        for auto_role_id in auto_roles_ids:
+            auto_role = interaction.guild.get_role(auto_role_id)
+            if auto_role:
+                await dirigeant.add_roles(auto_role)
+        
+        # Enregistrer l'image si fournie
+        if image and is_valid_image_url(image):
+            pays_images[role_id] = image
+        
+        # Initialiser le personnel
+        personnel[role_id] = {
+            "policiers": 0,
+            "soldats_actifs": 0,
+            "soldats_genie": 0,
+            "soldats_reservistes": 0,
+            "forces_speciales": 0,
+            "agents_secrets": 0
+        }
+        
+        # Sauvegarder toutes les données
+        save_balances(balances)
+        save_personnel(personnel)
+        save_pays_images(pays_images)
+        save_all_json_to_postgres()
+        
+        # Embed de confirmation
+        embed = discord.Embed(
+            title="🏛️ Nouveau pays créé",
+            description=f"> **Pays:** {role.mention}\n"
+                f"> **Continent:** {continent_role.mention}\n"
+                f"> **Salon:** {channel.mention}\n"
+                f"> **PIB:** {format_number(pib)} {MONNAIE_EMOJI}\n"
+                f"> **Budget alloué:** {format_number(budget)} {MONNAIE_EMOJI}\n"
+                f"> **Dirigeant:** {dirigeant.mention}{INVISIBLE_CHAR}",
+            color=EMBED_COLOR
+        )
+        embed.set_image(url=pays_image)
+        await interaction.followup.send(embed=embed)
+        
+        # Message de bienvenue
+        welcome_embed = discord.Embed(
+            title=f"{emoji_message} | Bienvenue dans votre pays !",
+            description=f"> *Ce salon est réservé aux membres du pays {role.mention}*\n"
+                       f"> \n" 
+                       f"> PIB : {format_number(pib)} {MONNAIE_EMOJI}\n"
+                       f"> Budget alloué : {format_number(budget)} {MONNAIE_EMOJI}\n"
+                       f"> Dirigeant : {dirigeant.mention}\n"
+                       f"> \n"
+                       f"> :black_small_square: Nous vous souhaitons une agréable expérience au sein du Rôleplay !{INVISIBLE_CHAR}",
+            color=EMBED_COLOR
+        )
+        welcome_embed.set_image(url=pays_image)
+        await channel.send(embed=welcome_embed)
+        
+        # Log de l'action
+        log_embed = discord.Embed(
+            title=f"🏛️ | Création de pays",
+            description=f"> **Administrateur :** {interaction.user.mention}\n"
+                       f"> **Pays créé :** {role.mention}\n"
+                       f"> **Continent :** {continent_role.mention}\n"
+                       f"> **PIB :** {format_number(pib)} {MONNAIE_EMOJI}\n"
+                       f"> **Dirigeant désigné :** {dirigeant.mention}\n"
+                       f"> **Budget alloué :** {format_number(budget)} {MONNAIE_EMOJI}"
+                       f"{INVISIBLE_CHAR}",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        await send_log(interaction.guild, embed=log_embed)
+        
+        # Envoyer un log détaillé dans le canal de log des pays
+        pays_log_embed = discord.Embed(
+            title=f"🏛️ | Nouveau Pays : {nom}",
+            description=f"Un nouveau pays a rejoint la scène internationale!",
+            color=EMBED_COLOR
+        )
+        pays_log_embed.add_field(
+            name="Informations",
+            value=f"> **Nom :** {nom}\n"
+                f"> **Continent :** {continent_role.name}\n"
+                f"> **Rôle :** {role.mention}\n"
+                f"> **Salon :** {channel.mention}\n"
+                f"> **PIB :** {format_number(pib)} {MONNAIE_EMOJI}\n"
+                f"> **Créé par :** {interaction.user.mention}",
+            inline=False
+        )
+        
+        pays_log_embed.add_field(
+            name="Gouvernement",
+            value=f"> **Dirigeant :** {dirigeant.mention}\n"
+                f"> **Budget alloué :** {format_number(budget)} {MONNAIE_EMOJI}",
+            inline=False
+        )
+        
+        pays_log_embed.add_field(
+            name="Message officiel",
+            value=f"Nous souhaitons la bienvenue à {dirigeant.mention}, nouveau dirigeant de {role.mention} sur la scène internationale. Nous lui souhaitons succès et prospérité dans la conduite de cette nation!",
+            inline=False
+        )
+        
+        pays_log_embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else None)
+        pays_log_embed.set_image(url=pays_image)
+        pays_log_embed.set_footer(text=f"Date de création : {datetime.datetime.now().strftime('%d/%m/%Y à %H:%M')}")
+        
+        await send_pays_log(interaction.guild, pays_log_embed)
+        
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors de la création du pays: {e}", ephemeral=True)
+
+# Ajouter une commande pour modifier l'image d'un pays
+@bot.tree.command(name="modifier_image_pays", description="Modifie l'image d'un pays")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    role="Rôle du pays dont vous voulez modifier l'image",
+    image="URL de la nouvelle image du pays"
+)
+async def modifier_image_pays(
+    interaction: discord.Interaction,
+    role: discord.Role,
+    image: str
+):
+    """Modifie l'image d'un pays."""
+    await interaction.response.defer(ephemeral=True)
+    
+    # Vérifier que le rôle est bien un pays
+    role_id = str(role.id)
+    if role_id not in balances:
+        await interaction.followup.send("> Ce rôle ne semble pas être un pays.", ephemeral=True)
+        return
+    
+    # Vérifier l'URL de l'image
+    if not is_valid_image_url(image):
+        await interaction.followup.send("> URL d'image invalide. Veuillez fournir une URL directe vers une image (JPG, PNG, etc.)", ephemeral=True)
+        return
+    
+    # Enregistrer la nouvelle image
+    pays_images[role_id] = image
+    save_pays_images(pays_images)
+    save_all_json_to_postgres()
+    
+    # Confirmation
+    embed = discord.Embed(
+        description=f"> L'image du pays {role.mention} a été mise à jour.{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    embed.set_image(url=image)
+    await interaction.followup.send(embed=embed)
+    
+    # Log de l'action
+    log_embed = discord.Embed(
+        title=f"🏛️ | Modification d'image de pays",
+        description=f"> **Administrateur :** {interaction.user.mention}\n"
+                   f"> **Pays modifié :** {role.mention}{INVISIBLE_CHAR}",
+        color=EMBED_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    log_embed.set_image(url=image)
+    await send_log(interaction.guild, embed=log_embed)
+
+# Ajouter la commande pour définir le canal de log des pays
+@bot.tree.command(name="setlogpays", description="Définit le salon de logs pour les pays")
+@app_commands.checks.has_permissions(administrator=True)
+async def setlogpays(interaction: discord.Interaction, channel: discord.TextChannel):
+    pays_log_channel_data[str(interaction.guild.id)] = channel.id
+    save_pays_log_channel(pays_log_channel_data)
+    embed = discord.Embed(
+        description=f"> Salon de logs pour les pays défini sur {channel.mention}.{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    embed.set_image(url=IMAGE_URL)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# Commande ranking simplifiée : affiche seulement l'argent total en circulation
+@bot.tree.command(name="ranking", description="Affiche l'argent total en circulation")
+async def ranking(interaction: discord.Interaction):
+    total_money = sum(balances.values())
+    embed = discord.Embed(
+        title="📊 Argent en circulation",
+        description=f"> **Total d'argent en circulation :** {format_number(total_money)} {MONNAIE_EMOJI}{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    embed.set_image(url=IMAGE_URL)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# Commande /payer : la cible est un rôle (pays) obligatoire, si rien n'est précisé l'argent est détruit (bot), et on ne save pas dans ce cas
+@bot.tree.command(name="payer", description="Payer un autre pays ou détruire de l'argent de son pays")
+@app_commands.describe(
+    cible="Le rôle (pays) à payer. Si rien n'est sélectionné, l'argent est payé au bot.",
+    montant="Montant à payer"
+)
+@app_commands.choices()
+async def payer(interaction: discord.Interaction, montant: int, cible: typing.Optional[discord.Role] = None):
+    # Cherche le premier rôle pays du membre qui a de l'argent
+    user_roles = [r for r in interaction.user.roles if str(r.id) in balances and balances[str(r.id)] > 0]
+    if not user_roles:
+        await interaction.response.send_message(
+            "> Vous n'avez aucun rôle pays avec de l'argent pour payer.", ephemeral=True)
+        return
+    pays_role = user_roles[0]
+    pays_id = str(pays_role.id)
+    solde = balances.get(pays_id, 0)
+    if montant <= 0:
+        await interaction.response.send_message(
+            "> Le montant doit être positif.", ephemeral=True)
+        return
+    if montant > solde:
+        await interaction.response.send_message(
+            "> Votre pays n'a pas assez d'argent pour payer.", ephemeral=True)
+        return
+    if cible:
+        cible_id = str(cible.id)
+        balances[pays_id] -= montant
+        balances[cible_id] = balances.get(cible_id, 0) + montant
+        save_balances(balances)
+        save_all_json_to_postgres()
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} payés de {pays_role.mention} à {cible.mention}.{INVISIBLE_CHAR}",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    else:
+        # Paiement au bot : l'argent est détruit, on ne save pas balances
+        balances[pays_id] -= montant
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} ont été retirés de la circulation depuis {pays_role.mention}.{INVISIBLE_CHAR}",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# Commande pour reset l'économie
+@bot.tree.command(name="reset_economie", description="Réinitialise toute l'économie et supprime l'argent en circulation (admin seulement)")
+@app_commands.checks.has_permissions(administrator=True)
+async def reset_economie(interaction: discord.Interaction):
+    """Réinitialise l'économie : vide tous les fichiers de données économiques."""
+    await interaction.response.defer(ephemeral=True)
+    confirm_view = discord.ui.View()
+    confirm_button = discord.ui.Button(label="Confirmer la réinitialisation", style=discord.ButtonStyle.danger)
+    cancel_button = discord.ui.Button(label="Annuler", style=discord.ButtonStyle.secondary)
+    confirm_view.add_item(confirm_button)
+    confirm_view.add_item(cancel_button)
+
+    async def confirm_callback(interaction2: discord.Interaction):
+        if interaction2.user.id != interaction.user.id:
+            await interaction2.response.send_message("Vous n'êtes pas autorisé à confirmer cette action.", ephemeral=True)
+            return
+        # Vider les variables en mémoire
+        global balances, loans, personnel
+        balances.clear()
+        loans.clear()
+        personnel.clear()
+        # Sauvegarder les fichiers vides
+        for file_path, empty_value in [
+            (BALANCE_FILE, {}),
+            (BALANCE_BACKUP_FILE, {}),
+            (LOANS_FILE, []),
+            (PERSONNEL_FILE, {}),
+            (TRANSACTION_LOG_FILE, []),
+        ]:
+            try:
+                with open(file_path, "w") as f:
+                    json.dump(empty_value, f)
+            except Exception as e:
+                await interaction2.response.send_message(f"Erreur lors de la suppression de {os.path.basename(file_path)} : {e}", ephemeral=True)
+                return
+        await interaction2.response.edit_message(content="✅ Économie réinitialisée avec succès !", view=None)
+
+    async def cancel_callback(interaction2: discord.Interaction):
+        if interaction2.user.id != interaction.user.id:
+            await interaction2.response.send_message("Vous n'êtes pas autorisé à annuler cette action.", ephemeral=True)
+            return
+        await interaction2.response.edit_message(content="❌ Réinitialisation annulée.", view=None)
+
+    confirm_button.callback = confirm_callback
+    cancel_button.callback = cancel_callback
+
+    await interaction.followup.send(
+        "⚠️ Cette action va supprimer toutes les données économiques (balances, prêts, transactions, personnel). Confirmez-vous ?",
+        view=confirm_view,
+        ephemeral=True
+    )
+
+
+# Commande /balance : voir l'argent de son pays ou d'un autre (optionnel)
+@bot.tree.command(name="balance", description="Affiche l'argent de votre pays ou d'un autre rôle (optionnel)")
+@app_commands.describe(role="Le rôle (pays) dont vous voulez voir l'argent (optionnel)")
+async def balance(interaction: discord.Interaction, role: discord.Role = None):
+    # Si aucun rôle n'est précisé, on cherche le premier rôle du membre qui a de l'argent
+    if role is None:
+        user_roles = [r for r in interaction.user.roles if str(r.id) in balances and balances[str(r.id)] > 0]
+        if not user_roles:
+            await interaction.response.send_message(
+                "> Vous n'avez aucun rôle pays avec de l'argent. Précisez un rôle pour voir sa balance.", ephemeral=True)
+            return
+        role = user_roles[0]
+    # Vérifie que l'utilisateur a bien ce rôle ou est admin
+    if role not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message(
+            "> Vous n'avez pas ce rôle, vous ne pouvez pas voir la balance de ce pays.", ephemeral=True)
+        return
+    role_id = str(role.id)
+    montant = balances.get(role_id, 0)
+    embed = discord.Embed(
+        description=f"> Le rôle {role.mention} possède {format_number(montant)} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# Commande pour ajouter de l'argent à un rôle
+@bot.tree.command(name="add_argent", description="Ajoute de l'argent à un rôle (admin seulement)")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(role="Le rôle (pays) à créditer", montant="Montant à ajouter")
+async def add_argent(interaction: discord.Interaction, role: discord.Role, montant: int):
+    if montant <= 0:
+        await interaction.response.send_message("> Le montant doit être positif.", ephemeral=True)
+        return
+    role_id = str(role.id)
+    balances[role_id] = balances.get(role_id, 0) + montant
+    save_balances(balances)
+    save_all_json_to_postgres()
+    embed = discord.Embed(
+        description=f"> {format_number(montant)} {MONNAIE_EMOJI} ajoutés à {role.mention}. Nouveau solde : {format_number(balances[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# Commande pour retirer de l'argent à un rôle (utilisable uniquement par les membres du rôle)
+@bot.tree.command(name="remove_argent", description="Retire de l'argent à un rôle (utilisable uniquement par les membres du rôle)")
+@app_commands.describe(role="Le rôle (pays) à débiter", montant="Montant à retirer")
+async def remove_argent(interaction: discord.Interaction, role: discord.Role, montant: int):
+    if montant <= 0:
+        await interaction.response.send_message("> Le montant doit être positif.", ephemeral=True)
+        return
+    if role not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("> Vous devez avoir ce rôle pour retirer de l'argent.", ephemeral=True)
+        return
+    role_id = str(role.id)
+    solde = balances.get(role_id, 0)
+    if montant > solde:
+        await interaction.response.send_message("> Le rôle n'a pas assez d'argent.", ephemeral=True)
+        return
+    balances[role_id] = solde - montant
+    save_balances(balances)
+    save_all_json_to_postgres()
+    embed = discord.Embed(
+        description=f"> {format_number(montant)} {MONNAIE_EMOJI} retirés à {role.mention}. Nouveau solde : {format_number(balances[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+        color=discord.Color.red()
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="supprimer_pays", description="Supprime un pays, son rôle et son salon")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    pays="Le rôle du pays à supprimer",
+    raison="Raison de la suppression du pays (facultatif)"
+)
+async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, raison: str = None):
+    """Supprime un pays, son rôle et son salon."""
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        role_id = str(pays.id)
+        
+        # Identifier tous les membres ayant ce rôle (potentiels dirigeants)
+        membres_dirigeants = [membre for membre in pays.members]
+        
+        # ID des rôles spéciaux de joueur et non-joueur
+        role_joueur_id = 1410289640170328244
+        role_non_joueur_id = 1393344053608710315
+        
+        # IDs des rôles à retirer automatiquement
+        auto_roles_ids = [
+            1413994233622302750,
+            1413993819292045315,
+            1413994277029023854,
+            1413994327473918142,
+            1413993786001985567,
+            1413995073632207048,
+            1413993747515052112,
+            1413995459827077190,
+            1413997188089909398,
+            1413995329656852662
+        ]
+        
+        # IDs des rôles de continents
+        continent_roles_ids = {
+            "Europe": 1413995502785138799,
+            "Afrique": 1413995608922128394,
+            "Amérique": 1413995735732457473,
+            "Asie": 1413995874304004157,
+            "Océanie": 1413996176956461086
+        }
+        
+        # Récupérer les objets de rôle
+        role_joueur = interaction.guild.get_role(role_joueur_id)
+        role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
+        
+        # Récupérer les rôles automatiques
+        auto_roles = [interaction.guild.get_role(role_id) for role_id in auto_roles_ids if interaction.guild.get_role(role_id)]
+        
+        # Déterminer le continent du pays à supprimer
+        continent_role = None
+        for membre in membres_dirigeants:
+            for role in membre.roles:
+                if role.id in continent_roles_ids.values():
+                    continent_role = role
+                    break
+            if continent_role:
+                break
+        
+        # Trouver les salons du pays (y compris le salon secret)
+        salons_pays = []
+        # Nom du pays formaté (pour retrouver le salon principal et le salon secret)
+        formatted_name = convert_to_bold_letters(pays.name.replace('❝ ｢ ','').replace('｣ ❞','').replace('【','').replace('】','').replace('・','').strip())
+        for channel in interaction.guild.text_channels:
+            # Salon principal (par permissions)
+            perms = channel.overwrites_for(pays)
+            if perms.read_messages:
+                salons_pays.append(channel)
+            # Salon secret (par nom)
+            if formatted_name.lower().replace(' ', '-') in channel.name:
+                if channel not in salons_pays:
+                    salons_pays.append(channel)
+        
+        # Supprimer le pays des données
+        if role_id in balances:
+            del balances[role_id]
+        if role_id in personnel:
+            del personnel[role_id]
+        if role_id in pays_images:
+            del pays_images[role_id]
+            
+        # Sauvegarder les données
+        save_balances(balances)
+        save_personnel(personnel)
+        save_pays_images(pays_images)
+        save_all_json_to_postgres()
+        
+        # Pour chaque dirigeant, retirer les rôles
+        for dirigeant in membres_dirigeants:
+            # Retirer le rôle de joueur et ajouter le rôle de non-joueur
+            if role_joueur and role_joueur in dirigeant.roles:
+                await dirigeant.remove_roles(role_joueur)
+            
+            if role_non_joueur:
+                await dirigeant.add_roles(role_non_joueur)
+            
+            # Retirer tous les rôles automatiques
+            roles_a_retirer = [role for role in auto_roles if role in dirigeant.roles]
+            if roles_a_retirer:
+                await dirigeant.remove_roles(*roles_a_retirer)
+            
+            # Retirer le rôle de continent si trouvé
+            if continent_role and continent_role in dirigeant.roles:
+                await dirigeant.remove_roles(continent_role)
+        
+        # Supprimer les salons du pays
+        for channel in salons_pays:
+            await channel.delete()
+        
+        # Supprimer le rôle du pays
+        await pays.delete()
+        
+        # Préparer la raison de suppression
+        raison_text = f"**Raison:** {raison}" if raison else "Aucune raison spécifiée."
+        
+        # Embed de confirmation
+        embed = discord.Embed(
+            title="🗑️ Pays supprimé",
+            description=f"> Le pays a été supprimé avec succès.\n> {raison_text}{INVISIBLE_CHAR}",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        
+        # Log de l'action
+        log_embed = discord.Embed(
+            title="🗑️ | Suppression de pays",
+            description=f"> **Administrateur :** {interaction.user.mention}\n"
+                       f"> **Pays supprimé : ** {pays.name}\n"
+                       f"> **Membres concernés : ** {', '.join([m.mention for m in membres_dirigeants]) if membres_dirigeants else 'Aucun'}\n"
+                       f"> **Continent : ** {continent_role.name if continent_role else 'Non identifié'}\n"
+                       f"> **Rôles retirés : ** {len(auto_roles) + (1 if continent_role else 0) + 1} rôles\n"
+                       f"> {raison_text}{INVISIBLE_CHAR}",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        await send_log(interaction.guild, embed=log_embed)
+        
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors de la suppression du pays: {e}", ephemeral=True)
+        print(f"Erreur détaillée lors de la suppression du pays: {e}")
+
+@bot.tree.command(name="modifier_pays", description="Modifie les informations d'un pays existant")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    role="Rôle du pays à modifier",
+    nouveau_nom="Nouveau nom pour le pays (facultatif)",
+    emoji="Nouvel emoji pour le pays (facultatif)",
+    couleur="Nouveau code couleur hexadécimal pour le rôle (ex: #FF0000, facultatif)"
+)
+async def modifier_pays(
+    interaction: discord.Interaction, 
+    role: discord.Role,
+    nouveau_nom: str = None, 
+    emoji: str = None,
+    couleur: str = None
+):
+    """Modifie les informations d'un pays existant."""
+    await interaction.response.defer()
+    
+    try:
+        modifications = []
+        
+        # Chercher le salon du pays
+        country_channel = None
+        for channel in interaction.guild.text_channels:
+            # Vérifier les permissions pour ce rôle
+            if channel.permissions_for(role).read_messages and not channel.permissions_for(interaction.guild.default_role).read_messages:
+                country_channel = channel
+                break
+        
+        # # Modifier le nom du pays si spécifié
+        if nouveau_nom:
+            # Modifier le nom du rôle
+            old_role_name = role.name
+            role_name = f"{emoji}・❝ ｢ {nouveau_nom} ｣ ❞" if emoji else f"❝ ｢ {nouveau_nom} ｣ ❞"
+            
+            # Si l'emoji n'est pas spécifié mais qu'il y a déjà un emoji dans le nom actuel
+            if not emoji and '・' in old_role_name:
+                parts = old_role_name.split('・', 1)
+                if len(parts) > 1:
+                    emoji_part = parts[0]
+                    role_name = f"{emoji_part}・❝ ｢ {nouveau_nom} ｣ ❞"            
+            await role.edit(name=role_name)
+            modifications.append("nom du rôle")
+            
+            # Modifier le nom du salon si trouvé
+            if country_channel:
+                # Convertir les majuscules en caractères spéciaux pour le salon
+                formatted_name = convert_to_bold_letters(nouveau_nom)
+                
+                # Déterminer l'emoji à utiliser
+                current_emoji = None
+                if emoji:
+                    current_emoji = emoji
+                elif '【' in country_channel.name and '】' in country_channel.name:
+                    # Extraire l'emoji actuel
+                    emoji_part = country_channel.name.split('【', 1)[1].split('】', 1)[0]
+                    if emoji_part:
+                        current_emoji = emoji_part
+                
+                # Construire le nouveau nom de salon
+                if current_emoji:
+                    channel_name = f"【{current_emoji}】・{formatted_name.lower().replace(' ', '-')}"
+                else:
+                    channel_name = f"【】・{formatted_name.lower().replace(' ', '-')}"
+                
+                await country_channel.edit(name=channel_name)
+                modifications.append("nom du salon")
+        
+        # Modifier uniquement l'emoji si le nom n'est pas changé mais l'emoji oui
+        elif emoji:
+            # Extraire le nom actuel du rôle
+            current_name = role.name
+            if '・' in current_name:
+                current_name = current_name.split('・', 1)[1]
+            role_name = f"{emoji}・{current_name}"
+            await role.edit(name=role_name)
+            modifications.append("emoji du rôle")
+            
+            # Modifier l'emoji dans le nom du salon
+            if country_channel:
+                channel_parts = country_channel.name.split('・', 1)
+                if len(channel_parts) > 1:
+                    channel_name = f"【{emoji}】・{channel_parts[1]}"
+                    await country_channel.edit(name=channel_name)
+                    modifications.append("emoji du salon")
+        
+        # Modifier la couleur du rôle si spécifiée
+        if couleur:
+            try:
+                if couleur.startswith('#'):
+                    couleur = couleur[1:]
+                color_value = int(couleur, 16)
+                await role.edit(color=discord.Color(color_value))
+
+                modifications.append("couleur du rôle")
+            except ValueError:
+                await interaction.followup.send("> Format de couleur invalide. La couleur n'a pas été modifiée.", ephemeral=True)
+        
+        # Message de confirmation
+        if modifications:
+            embed = discord.Embed(
+                title="🏛️ Pays modifié",
+                description=f"> **Pays:** {role.mention}\n"
+                           f"> **Modifications:** {', '.join(modifications)}{INVISIBLE_CHAR}",
+                color=EMBED_COLOR
+            )
+            embed.set_image(url=IMAGE_URL)
+            await interaction.followup.send(embed=embed)
+            
+            # Log de l'action
+            log_embed = discord.Embed(
+                title=f"🏛️ | Modification de pays",
+                description=f"> **Administrateur :** {interaction.user.mention}\n"
+                           f"> **Pays modifié : ** {role.mention}\n"
+                           f"> **Modifications : ** {', '.join(modifications)}{INVISIBLE_CHAR}",
+                color=EMBED_COLOR,
+                timestamp=datetime.datetime.now()
+            )
+            await send_log(interaction.guild, embed=log_embed)
+        else:
+            await interaction.followup.send("> Aucune modification n'a été apportée.", ephemeral=True)
+        
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors de la modification du pays: {e}", ephemeral=True)
+
+@bot.tree.command(name="creer_drapeau", description="Convertit une image en drapeau style emoji Twitter")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    image_url="URL de l'image à convertir en drapeau",
+    nom_emoji="Nom à donner à l'emoji (sans espaces ni caractères spéciaux)"
+)
+async def creer_drapeau(interaction: discord.Interaction, image_url: str, nom_emoji: str):
+    """Convertit une image en drapeau style emoji Twitter."""
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        # Vérifier le nom d'emoji
+        if not nom_emoji.replace("_", "").isalnum():
+            await interaction.followup.send("> Le nom de l'emoji doit contenir uniquement des lettres, chiffres et underscores.", ephemeral=True)
+            return
+        
+        # Télécharger l'image
+        async with aiohttp.ClientSession() as session:
+            async with session.get(image_url) as resp:
+                if resp.status != 200:
+                    await interaction.followup.send(f"> Erreur lors du téléchargement de l'image (code {resp.status}).", ephemeral=True)
+                    return
+                img_bytes = await resp.read()
+        
+        # Ouvrir l'image
+        original = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+        
+        # Créer une image carrée avec ratio 4:3 (style Twitter flag)
+        width, height = 128, 96
+        
+        # Redimensionner l'image en préservant son ratio et en la recadrant si nécessaire
+        img_ratio = original.width / original.height
+        target_ratio = width / height
+        
+        if img_ratio > target_ratio:  # Image plus large
+            new_height = height
+            new_width = int(new_height * img_ratio)
+            resized = original.resize((new_width, new_height), Image.LANCZOS)
+            # Recadrer le centre
+            left = (new_width - width) // 2
+            resized = resized.crop((left, 0, left + width, height))
+        else:  # Image plus haute
+            new_width = width
+            new_height = int(new_width / img_ratio)
+            resized = original.resize((new_width, new_height), Image.LANCZOS)
+            # Recadrer le centre
+            top = (new_height - height) // 2
+            resized = resized.crop((0, top, width, top + height))
+        
+        # Créer un masque avec coins arrondis (style Twitter)
+        # Les drapeaux Twitter ont des coins légèrement arrondis
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        
+        # Rayon d'arrondi style Twitter (environ 10% de la largeur)
+        radius = int(width * 0.1)
+        
+        # Dessiner un rectangle avec coins arrondis
+        draw.rectangle((radius, 0, width - radius, height), fill=255)  # Partie horizontale centrale
+        draw.rectangle((0, radius, width, height - radius), fill=255)  # Partie verticale centrale
+        
+        # Coins arrondis
+        draw.pieslice((0, 0, radius * 2, radius * 2), 180, 270, fill=255)  # Coin supérieur gauche
+        draw.pieslice((width - radius * 2, 0, width, radius * 2), 270, 0, fill=255)  # Coin supérieur droit
+        draw.pieslice((0, height - radius * 2, radius * 2, height), 90, 180, fill=255)  # Coin inférieur gauche
+        draw.pieslice((width - radius * 2, height - radius * 2, width, height), 0, 90, fill=255)  # Coin inférieur droit
+        
+        # Appliquer le masque
+        result = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        result.paste(resized, (0, 0), mask)
+        
+        # Enregistrer en mémoire
+        buffer = io.BytesIO()
+        result.save(buffer, format="PNG")
+        buffer.seek(0)
+        
+        # Créer l'emoji
+        try:
+            emoji = await interaction.guild.create_custom_emoji(
+                name=nom_emoji,
+                image=buffer.read()
+            )
+            
+            # Message de confirmation
+            embed = discord.Embed(
+                title="🏁 Drapeau créé",
+                description=f"> L'emoji a été créé avec succès : {str(emoji)}\n"
+                           f"> **Nom :** {emoji.name}\n"
+                           f"> **ID :** {emoji.id}{INVISIBLE_CHAR}",
+                color=EMBED_COLOR
+            )
+            embed.set_image(url=emoji.url)
+            await interaction.followup.send(embed=embed)
+            
+        except discord.Forbidden:
+            await interaction.followup.send("> Je n'ai pas les permissions nécessaires pour créer des emojis sur ce serveur.", ephemeral=True)
+        except discord.HTTPException as e:
+                       await interaction.followup.send(f"> Erreur lors de la création de l'emoji : {e}", ephemeral=True)
+        
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors de la création du drapeau : {str(e)}", ephemeral=True)
+
+def check_duplicate_json_files():
+    """Vérifie s'il existe des fichiers JSON en double dans le projet."""
+    json_files = [
+        "balances.json", "log_channel.json", "message_log_channel.json", 
+        "loans.json", "personnel.json", "balances_backup.json",
+        "transactions.json", "pays_log_channel.json", "pays_images.json"
+    ]
+    
+    duplicates = []
+    for file in json_files:
+        root_path = os.path.join(BASE_DIR, file)
+        data_path = os.path.join(DATA_DIR, file)
+        
+        if os.path.exists(root_path) and os.path.exists(data_path):
+            duplicates.append(file)
+    
+
+    
+    if duplicates:
+        print(f"AVERTISSEMENT: Les fichiers suivants existent à la fois à la racine et dans le dossier data: {', '.join(duplicates)}")
+        print("Pour éviter les conflits, supprimez les fichiers à la racine et gardez uniquement ceux dans le dossier data.")
+
+from discord import Permissions
+
+# Durées de mute disponibles (en secondes)
+MUTE_DURATIONS = [
+    ("1 minute", 60),
+    ("5 minutes", 5 * 60),
+    ("10 minutes", 10 * 60),
+    ("15 minutes", 15 * 60),
+    ("30 minutes", 30 * 60),
+    ("1 heure", 60 * 60),
+    ("2 heures", 2 * 60 * 60),
+    ("4 heures", 4 * 60 * 60),
+    ("6 heures", 6 * 60 * 60),
+    ("10 heures", 10 * 60 * 60),
+    ("24 heures", 24 * 60 * 60),
+]
+
+MUTE_ROLE_ID = 1414694151622234212  # ID du rôle mute à utiliser en priorité
+
+def get_mute_role(guild):
+    """Retourne le rôle mute par ID si possible, sinon par nom."""
+    role = guild.get_role(MUTE_ROLE_ID)
+    if role:
+        return role
+    for role in guild.roles:
+        if role.name.lower() == "mute":
+            return role
+    return None
+
+@bot.tree.command(name="creer_role_mute", description="Crée le rôle mute et configure les permissions sur tous les salons")
+@app_commands.checks.has_permissions(administrator=True)
+async def creer_role_mute(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+
+    mute_role = get_mute_role(guild)
+    if not mute_role:
+        mute_role = await guild.create_role(name="Mute", reason="Création du rôle mute")
+
+    # Configurer les permissions sur toutes les catégories et salons
+    for category in guild.categories:
+        try:
+            await category.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+        except Exception:
+            pass
+    for channel in guild.channels:
+        try:
+            await channel.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+        except Exception:
+            pass
+
+    embed = discord.Embed(
+        description=f"> Le rôle {mute_role.mention} a été créé et configuré sur tous les salons.{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+# Générer les choix pour la durée
+duration_choices = [
+    app_commands.Choice(name=label, value=str(seconds))
+    for label, seconds in MUTE_DURATIONS
+]
+
+@bot.tree.command(name="mute", description="Mute un membre pour une durée définie")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    membre="Membre à mute",
+    duree="Durée du mute",
+    raison="Raison du mute (optionnel)"
+)
+@app_commands.choices(duree=duration_choices)
+async def mute(
+    interaction: discord.Interaction,
+    membre: discord.Member,
+    duree: str,
+    raison: str = None
+):
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    mute_role = get_mute_role(guild)
+    if not mute_role:
+        await interaction.followup.send("> Le rôle mute n'existe pas. Utilisez /creer_role_mute d'abord.", ephemeral=True)
+        return
+    await membre.add_roles(mute_role, reason=raison or "Mute via commande")
+    seconds = int(duree)
+    label = next((lbl for lbl, sec in MUTE_DURATIONS if sec == seconds), f"{seconds} secondes")
+    try:
+        await membre.send(
+            f"Vous avez été mute sur **{guild.name}** pour {label}." + (f"\nRaison : {raison}" if raison else "")
+        )
+    except Exception:
+        pass
+    embed = discord.Embed(
+        description=f"> {membre.mention} a été mute pour **{label}**.{INVISIBLE_CHAR}",
+        color=discord.Color.orange()
+    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
+    # Log dans le salon de mute
+    log_embed = discord.Embed(
+        title="🔇 Mute appliqué",
+        description=f"> **Utilisateur :** {membre.mention}\n> **Durée :** {label}\n> **Par :** {interaction.user.mention}\n> **Raison :** {raison or 'Non spécifiée'}",
+        color=discord.Color.orange(),
+        timestamp=datetime.datetime.now()
+    )
+    await send_mute_log(guild, log_embed)
+    # Enregistre le mute actif
+    unmute_time = time.time() + seconds
+    active_mutes[f"{guild.id}:{membre.id}"] = {
+        "guild_id": str(guild.id),
+        "user_id": str(membre.id),
+        "unmute_time": unmute_time
+    }
+    save_active_mutes(active_mutes)
+    bot.loop.create_task(schedule_unmute(guild.id, membre.id, unmute_time))
+
+@bot.tree.command(name="unmute", description="Retire le mute d'un membre")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    membre="Membre à unmute"
+)
+async def unmute(interaction: discord.Interaction, membre: discord.Member):
+    await interaction.response.defer(ephemeral=True)
+    mute_role = get_mute_role(interaction.guild)
+    if not mute_role:
+        await interaction.followup.send("> Le rôle mute n'existe pas.", ephemeral=True)
+        return
+    if mute_role not in membre.roles:
+        await interaction.followup.send("> Ce membre n'est pas mute.", ephemeral=True)
+        return
+    await membre.remove_roles(mute_role, reason="Unmute via commande")
+    try:
+        await membre.send(f"Vous avez été unmute sur **{interaction.guild.name}**.")
+    except Exception:
+        pass
+    embed = discord.Embed(
+        description=f"> {membre.mention} a été unmute.{INVISIBLE_CHAR}",
+        color=discord.Color.green()
+    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
+    # Log dans le salon de mute
+    log_embed = discord.Embed(
+        title="🔊 Unmute manuel",
+        description=f"> **Utilisateur :** {membre.mention}\n> **Par :** {interaction.user.mention}",
+        color=discord.Color.green(),
+        timestamp=datetime.datetime.now()
+    )
+    await send_mute_log(interaction.guild, log_embed)
+    # Supprime le mute actif si existant
+    active_mutes.pop(f"{interaction.guild.id}:{membre.id}", None)
+    save_active_mutes(active_mutes)
+
+@bot.tree.command(name="ban", description="Ban un membre du serveur")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    membre="Membre à bannir",
+    raison="Raison du ban (optionnel)"
+)
+async def ban(interaction: discord.Interaction, membre: discord.Member, raison: str = None):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        # DM au membre
+        try:
+            await membre.send(
+                f"Vous avez été **banni** du serveur **{interaction.guild.name}**."
+                + (f"\nRaison : {raison}" if raison else "")
+            )
+        except Exception:
+            pass
+
+        await membre.ban(reason=raison or f"Banni par {interaction.user} via /ban")
+        embed = discord.Embed(
+            description=f"> {membre.mention} a été **banni** du serveur.{INVISIBLE_CHAR}",
+            color=discord.Color.red()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+        # Log dans le salon de mute
+        log_embed = discord.Embed(
+            title="⛔ Ban appliqué",
+            description=f"> **Utilisateur :** {membre.mention}\n"
+                        f"> **Par :** {interaction.user.mention}\n"
+                        f"> **Raison :** {raison or 'Non spécifiée'}",
+            color=discord.Color.red(),
+            timestamp=datetime.datetime.now()
+        )
+        await send_mute_log(interaction.guild, log_embed)
+
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors du ban : {e}", ephemeral=True)
+
+# === LOG MUTE ===
+MUTE_LOG_FILE = os.path.join(DATA_DIR, "mute_log_channel.json")
+mute_log_channel_data = {}
+
+def load_mute_log_channel():
+    if not os.path.exists(MUTE_LOG_FILE):
+        with open(MUTE_LOG_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(MUTE_LOG_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement du log mute: {e}")
+        return {}
+
+def save_mute_log_channel(data):
+    try:
+        with open(MUTE_LOG_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde du log mute: {e}")
+
+mute_log_channel_data.update(load_mute_log_channel())
+
+@bot.tree.command(name="setpermission_mute", description="Réapplique les permissions du rôle mute sur tous les salons et catégories")
+@app_commands.checks.has_permissions(administrator=True)
+async def setpermission_mute(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    mute_role = get_mute_role(guild)
+    if not mute_role:
+        await interaction.followup.send("> Le rôle mute n'existe pas. Utilisez /creer_role_mute d'abord.", ephemeral=True)
+        return
+    for category in guild.categories:
+        try:
+            await category.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+        except Exception:
+            pass
+    for channel in guild.channels:
+        try:
+            await channel.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+        except Exception:
+            pass
+    embed = discord.Embed(
+        description=f"> Permissions du rôle {mute_role.mention} réappliquées sur tous les salons et catégories.",
+        color=EMBED_COLOR
+    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="setlogmute", description="Définit le salon de logs pour les sanctions mute/unmute")
+@app_commands.checks.has_permissions(administrator=True)
+async def setlogmute(interaction: discord.Interaction, channel: discord.TextChannel):
+    mute_log_channel_data[str(interaction.guild.id)] = channel.id
+    save_mute_log_channel(mute_log_channel_data)
+    embed = discord.Embed(
+        description=f"> Salon de logs mute défini sur {channel.mention}.{INVISIBLE_CHAR}",
+        color=EMBED_COLOR
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# === GESTION DES MUTES PERSISTANTS ===
+ACTIVE_MUTES_FILE = os.path.join(DATA_DIR, "active_mutes.json")
+
+def load_active_mutes():
+    if not os.path.exists(ACTIVE_MUTES_FILE):
+        with open(ACTIVE_MUTES_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(ACTIVE_MUTES_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des mutes actifs: {e}")
+        return {}
+
+def save_active_mutes(data):
+    try:
+        with open(ACTIVE_MUTES_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des mutes actifs: {e}")
+
+active_mutes = load_active_mutes()
+
+async def schedule_unmute(guild_id, user_id, unmute_time):
+    now = time.time()
+    delay = unmute_time - now
+    if delay > 0:
+        await asyncio.sleep(delay)
+    guild = bot.get_guild(int(guild_id))
+    if not guild:
+        return
+    member = guild.get_member(int(user_id))
+    mute_role = get_mute_role(guild)
+    if member and mute_role and mute_role in member.roles:
+        try:
+            await member.remove_roles(mute_role, reason="Fin du mute automatique")
+            try:
+                await member.send(f"Votre sanction mute sur **{guild.name}** est terminée.")
+            except Exception:
+                pass
+            # Log de l'unmute automatique
+            unmute_embed = discord.Embed(
+                title="🔊 Mute terminé",
+                description=f"> **Utilisateur :** {member.mention}\n> **Fin de la durée automatique**",
+                color=discord.Color.green(),
+                timestamp=datetime.datetime.now()
+            )
+            await send_mute_log(guild, unmute_embed)
+        except Exception:
+            pass
+    # Nettoyer le mute actif
+    active_mutes.pop(f"{guild_id}:{user_id}", None)
+    save_active_mutes(active_mutes)
+
+async def restore_mutes_on_start():
+    now = time.time()
+    for key, mute in list(active_mutes.items()):
+        guild_id, user_id = mute["guild_id"], mute["user_id"]
+        unmute_time = mute["unmute_time"]
+        if unmute_time <= now:
+            await schedule_unmute(guild_id, user_id, now)
+        else:
+            bot.loop.create_task(schedule_unmute(guild_id, user_id, unmute_time))
+
+# ===== NOUVELLES COMMANDES =====
+
+class TriView(discord.ui.View):
+    def __init__(self, guild: discord.Guild):
+        super().__init__(timeout=None)
+        self.guild = guild
+
+    @discord.ui.button(label="Oui", style=discord.ButtonStyle.success)
+    async def oui(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Enregistrer la réponse
+        mp_tri_responses = load_mp_tri_responses()
+        mp_tri_responses[str(interaction.user.id)] = "oui"
+        save_mp_tri_responses(mp_tri_responses)
+        await interaction.response.send_message("Merci d'avoir confirmé votre présence !", ephemeral=True)
+        # Log dans le salon spécifique
+        log_channel_id = 1416369620310294548
+        log_channel = self.guild.get_channel(log_channel_id)
+        if log_channel:
+            embed = discord.Embed(
+                title="Réponse au tri des membres",
+                description=f"{interaction.user.mention} a répondu **OUI**.",
+                color=0x43b581,  # vert
+                timestamp=datetime.datetime.now()
+            )
+            await log_channel.send(embed=embed)
+
+    @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
+    async def non(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Enregistrer la réponse
+        mp_tri_responses = load_mp_tri_responses()
+        mp_tri_responses[str(interaction.user.id)] = "non"
+        save_mp_tri_responses(mp_tri_responses)
+        await interaction.response.send_message("Vous allez être retiré du serveur.", ephemeral=True)
+        # Log dans le salon spécifique
+        log_channel_id = 1416369620310294548
+        log_channel = self.guild.get_channel(log_channel_id)
+        if log_channel:
+            embed = discord.Embed(
+                title="Réponse au tri des membres",
+                description=f"{interaction.user.mention} a répondu **NON**.",
+                color=0xed4245,  # rouge
+                timestamp=datetime.datetime.now()
+            )
+            await log_channel.send(embed=embed)
+        try:
+            await self.guild.kick(interaction.user, reason="A répondu Non au tri des membres")
+        except Exception as e:
+            await interaction.followup.send(f"Erreur lors de l'exclusion : {e}", ephemeral=True)
+
+# === GESTION DES RÉPONSES AU TRI MP ===
+MP_TRI_RESPONSES_FILE = os.path.join(DATA_DIR, "mp_tri_responses.json")
+
+def load_mp_tri_responses():
+    if not os.path.exists(MP_TRI_RESPONSES_FILE):
+        with open(MP_TRI_RESPONSES_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(MP_TRI_RESPONSES_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des réponses au tri MP: {e}")
+        return {}
+
+def save_mp_tri_responses(data):
+    try:
+        with open(MP_TRI_RESPONSES_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des réponses au tri MP: {e}")
+
+mp_tri_responses = load_mp_tri_responses()
+
+@bot.tree.command(name="mp", description="Envoie un MP à tous les membres avec choix Oui/Non (admin seulement)")
+@app_commands.checks.has_permissions(administrator=True)
+async def mp(interaction: discord.Interaction):
+    await interaction.response.send_message("Envoi des messages privés en cours...", ephemeral=True)
+    guild = interaction.guild
+    mp_tri_responses = load_mp_tri_responses()
+    embed = discord.Embed(
+        title="🔔 Tri des membres PAX RUINAE",
+        description=(
+            "Sur le serveur **PAX RUINAE** <:PX_PaxRuinae:1410270324985168032>, nous procédons actuellement à un tri entre les membres actifs et inactifs.\n\n"
+            "**Si tu es actif et prêt à t'investir sur le serveur en incarnant un pays, clique sur le bouton `Oui`.**\n"
+            "Dans le cas contraire, clique sur le bouton `Non`."
+        ),
+        color=EMBED_COLOR
+    )
+    embed.set_image(url=IMAGE_URL)
+    count = 0
+    for member in guild.members:
+        if member.bot:
+            continue
+        # Ne pas renvoyer de MP si déjà répondu
+        if str(member.id) in mp_tri_responses:
+            continue
+        try:
+            await member.send(embed=embed, view=TriView(guild))
+            count += 1
+        except Exception:
+            pass  # Ignore les membres qui n'acceptent pas les MP
+    await interaction.followup.send(f"Message envoyé à {count} membres.", ephemeral=True)
+
+
+# === Bloc principal déplacé à la toute fin du fichier ===
+if __name__ == "__main__":
+    check_duplicate_json_files()
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    atexit.register(exit_handler)
+    restore_all_json_from_postgres()  # restauration auto avant tout chargement local
+    load_all_data()
+    print("Démarrage du bot...")
+    try:
+        bot.run(TOKEN)
+    except Exception as e:
+        print(f"Erreur lors du démarrage du bot: {e}")
+        save_balances(balances)
+        sys.exit(1)
