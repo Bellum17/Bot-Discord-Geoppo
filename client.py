@@ -132,9 +132,6 @@ class MyBot(commands.Bot):
         
         print("Bot prêt et tâches planifiées démarrées.")
 
-# Chargement des balances et autres données avant la création du bot
-load_all_data()
-
 # Création de l'instance du bot
 bot = MyBot()
 
@@ -155,6 +152,9 @@ async def on_ready():
 # Variables globales pour les données
 balances = {}
 log_channel_data = {}
+# Variables globales pour les données
+balances = {}
+log_channel_data = {}
 message_log_channel_data = {}
 loans = []
 personnel = {}
@@ -164,7 +164,9 @@ status_channel_data = {}
 status_message_id = None
 mute_log_channel_data = {}
 
-# Fonction pour formater les nombres avec espaces comme séparateurs
+# Chargement des balances et autres données après la définition de la fonction
+load_all_data()
+
 def format_number(number):
     """Formate un nombre pour l'affichage avec séparateurs de milliers."""
     if isinstance(number, int):
@@ -2295,7 +2297,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     atexit.register(exit_handler)
-    load_all_data()
+    load_all_data()  # <-- L'appel est bien ici dans le bloc main
     print("Démarrage du bot...")
     try:
         bot.run(TOKEN)
