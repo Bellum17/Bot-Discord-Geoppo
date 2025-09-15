@@ -1112,6 +1112,11 @@ async def creer_pays(
             category=categorie,
             overwrites=overwrites
         )
+        # Stocker l'ID du salon principal pour suppression future
+        if 'pays_channels' not in globals():
+            global pays_channels
+            pays_channels = {}
+        pays_channels[str(role.id)] = channel.id
 
         # Créer le salon secret si un nom est fourni et une catégorie spécifiée
         secret_channel = None
@@ -1571,16 +1576,16 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                     auto_roles.append(auto_role)
                     await membre.remove_roles(auto_role)
         
-        # Supprimer tous les salons textuels et vocaux dont le nom contient le nom du pays (insensible à la casse)
-        salons_supprimes = []
-        nom_pays = pays.name.lower()
-        for channel in interaction.guild.channels:
-            if nom_pays in channel.name.lower():
-                try:
-                    await channel.delete(reason="Suppression du pays et de ses salons associés")
-                    salons_supprimes.append(channel.name)
-                except Exception as e:
-                    print(f"Erreur lors de la suppression du salon {channel.name} : {e}")
+        # Supprimer le salon principal associé au pays si connu
+        if 'pays_channels' in globals():
+            salon_id = pays_channels.get(str(pays.id))
+            if salon_id:
+                channel = interaction.guild.get_channel(salon_id)
+                if channel:
+                    try:
+                        await channel.delete(reason="Suppression du pays et de son salon associé")
+                    except Exception as e:
+                        print(f"Erreur lors de la suppression du salon (ID {salon_id}) : {e}")
         # Supprimer le rôle
         await pays.delete()
         
