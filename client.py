@@ -1559,14 +1559,14 @@ async def remove_argent(interaction: discord.Interaction, role: discord.Role, mo
 @bot.tree.command(name="supprimer_pays", description="Supprime un pays, son rôle et son salon")
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
-    pays="Le rôle du pays à supprimer",
-    raison="Raison de la suppression du pays (facultatif)"
+    role="Rôle du pays à modifier",
+    nom="Nouveau nom pour le pays (facultatif)",
+    nouveau_dirigeant="Nouveau dirigeant du pays (facultatif)",
+    economie="Type d'économie du pays (facultatif)",
+    regime_politique="Régime politique du pays (facultatif)",
+    gouvernement="Forme de gouvernement du pays (facultatif)"
 )
-async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, raison: str = None):
-    # Supprimer la donnée du pays dans balances, personnel, pays_images (mémoire et fichiers)
-    role_id = str(pays.id)
-    balances.pop(role_id, None)
-    personnel.pop(role_id, None)
+@app_commands.choices(economie=[
     pays_images.pop(role_id, None)
     save_balances(balances)
     save_personnel(personnel)
@@ -1599,6 +1599,7 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                         data = json.loads(row[0])
                         data.pop(role_id, None)
                         cur.execute("UPDATE json_backups SET content = %s, updated_at = NOW() WHERE filename = %s", (json.dumps(data), "pays_images.json"))
+async def modifier_pays(
                 conn.commit()
             print(f"[DEBUG] Données du pays {role_id} supprimées de PostgreSQL.")
         except Exception as e:
@@ -1677,8 +1678,48 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
 @app_commands.describe(
     role="Rôle du pays à modifier",
     nom="Nouveau nom pour le pays (facultatif)",
-    nouveau_dirigeant="Nouveau dirigeant du pays (facultatif)"
+    nouveau_dirigeant="Nouveau dirigeant du pays (facultatif)",
+    economie="Type d'économie du pays (facultatif)",
+    regime_politique="Régime politique du pays (facultatif)",
+    gouvernement="Forme de gouvernement du pays (facultatif)"
 )
+    economie="Type d'économie du pays (facultatif)",
+    regime_politique="Régime politique du pays (facultatif)",
+    gouvernement="Forme de gouvernement du pays (facultatif)"
+)
+@app_commands.choices(economie=[
+    discord.app_commands.Choice(name="Économie ultra-libérale", value="1417234199353622569"),
+    discord.app_commands.Choice(name="Économie libérale", value="1417234220115431434"),
+    discord.app_commands.Choice(name="Économie mixte", value="1417234887508754584"),
+    discord.app_commands.Choice(name="Socialisme de marché", value="1417234944832442621"),
+    discord.app_commands.Choice(name="Économie planifiée", value="1417234931146555433"),
+    discord.app_commands.Choice(name="Économie dirigiste", value="1417235038168289290"),
+    discord.app_commands.Choice(name="Économie corporatiste", value="1417235052814794853")
+])
+@app_commands.choices(regime_politique=[
+    discord.app_commands.Choice(name="Démocratie", value="1417251476782448843"),
+    discord.app_commands.Choice(name="Autoritarisme", value="1417251480573968525"),
+    discord.app_commands.Choice(name="Totalitarisme", value="1417251556776218654"),
+    discord.app_commands.Choice(name="Monarchie", value="1417251565068226691"),
+    discord.app_commands.Choice(name="Oligarchie", value="1417251568327200828"),
+    discord.app_commands.Choice(name="Théocratie", value="1417251571661537320"),
+    discord.app_commands.Choice(name="Technocratie", value="1417251574568456232"),
+    discord.app_commands.Choice(name="Régime populaire", value="1417251577714053170"),
+    discord.app_commands.Choice(name="Régime militaire", value="1417252579766829076")
+])
+@app_commands.choices(gouvernement=[
+    discord.app_commands.Choice(name="Régime parlementaire", value="1417254283694313652"),
+    discord.app_commands.Choice(name="Régime présidentielle", value="1417254315684528330"),
+    discord.app_commands.Choice(name="République parlementaire", value="1417254344180371636"),
+    discord.app_commands.Choice(name="République présidentielle", value="1417254681243025428"),
+    discord.app_commands.Choice(name="Monarchie parlementaire", value="1417254399004246161"),
+    discord.app_commands.Choice(name="Monarchie absolue", value="1417254501110251540"),
+    discord.app_commands.Choice(name="Gouvernement directorial", value="1417254550951428147"),
+    discord.app_commands.Choice(name="Gouvernement de Transition", value="1417254582156791908"),
+    discord.app_commands.Choice(name="Gouvernement populaire", value="1417254615224680508"),
+    discord.app_commands.Choice(name="Stratocratie", value="1417254639069560904"),
+    discord.app_commands.Choice(name="Aucun gouvernement", value="1417254809253314590")
+])
 async def modifier_pays(
     interaction: discord.Interaction,
     role: discord.Role,
