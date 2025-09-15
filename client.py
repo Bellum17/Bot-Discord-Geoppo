@@ -1088,10 +1088,8 @@ async def creer_pays(
             # Position du rôle de continent sélectionné
             continent_position = continent_role.position
             
-            # Positionner le nouveau rôle DIRECTEMENT sous le continent sélectionné
-            positions = {role: continent_position}
-            
-            # Appliquer les nouvelles positions
+            # Positionner le nouveau rôle JUSTE en dessous du continent sélectionné
+            positions = {role: continent_position - 1}
             await interaction.guild.edit_role_positions(positions)
             print(f"Rôle de pays positionné juste en dessous du continent {continent_role.name}")
         except Exception as e:
