@@ -41,17 +41,21 @@ def save_all_json_to_postgres():
         ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
     ]
     try:
+        print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 for filename, filepath in files:
                     if os.path.exists(filepath):
                         with open(filepath, "r") as f:
                             content = f.read()
+                        print(f"[DEBUG] Sauvegarde du fichier {filename} dans PostgreSQL...")
                         cur.execute("""
                             INSERT INTO json_backups (filename, content, updated_at)
                             VALUES (%s, %s, NOW())
                             ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
                         """, (filename, content))
+                        print(f"[DEBUG] Requête SQL exécutée pour {filename}.")
+                print("[DEBUG] Commit de la transaction PostgreSQL...")
                 conn.commit()
         print("Sauvegarde automatique des fichiers JSON vers PostgreSQL effectuée.")
     except Exception as e:
