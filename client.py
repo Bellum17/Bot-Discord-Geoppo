@@ -1,5 +1,3 @@
-
-
 """
 #!/usr/bin/env python3
 Bot Discord pour la gestion d'économie.
@@ -1532,7 +1530,7 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         # Nom du pays formaté (pour retrouver le salon principal et le salon secret)
         formatted_name = convert_to_bold_letters(pays.name.replace('❝ ｢ ','').replace('｣ ❞','').replace('【','').replace('】','').replace('・','').strip())
         for channel in interaction.guild.text_channels:
-            overwrites = channel.overwrites
+            overwrites = channel.permissions_overwrite
             # Salon principal (par permissions)
             if pays in overwrites and overwrites[pays].read_messages:
                 salons_pays.append(channel)
@@ -1710,7 +1708,7 @@ async def modifier_pays(
             embed = discord.Embed(
                 title="🏛️ Pays modifié",
                 description=f"> **Pays:** {role.mention}\n"
-                           f"> **Modifications:** {', '.join(modifications)}{INVISIBLE_CHAR}",
+                                                     f"> **Modifications:** {', '.join(modifications)}{INVISIBLE_CHAR}",
                 color=EMBED_COLOR
             )
             embed.set_image(url=IMAGE_URL)
