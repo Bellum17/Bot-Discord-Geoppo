@@ -1285,13 +1285,15 @@ async def ranking(interaction: discord.Interaction):
     embed.set_image(url=IMAGE_URL)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Commande /payer : transfert d'argent d'un pays à un autre ou au bot (argent détruit)
-@bot.tree.command(name="payer", description="Payer une entité ou détruire de l'argent de son pays")
+
+# Commande /payer : la cible est un rôle (pays) obligatoire, si rien n'est précisé l'argent est détruit (bot), et on ne save pas dans ce cas
+@bot.tree.command(name="payer", description="Payer un autre pays ou détruire de l'argent de son pays")
 @app_commands.describe(
-    cible="Le membre ou rôle à payer (laisser vide pour payer le bot)",
+    cible="Le rôle (pays) à payer. Si rien n'est sélectionné, l'argent est détruit.",
     montant="Montant à payer"
 )
-async def payer(interaction: discord.Interaction, montant: int, cible: typing.Optional[discord.Member] = None, role: typing.Optional[discord.Role] = None):
+@app_commands.choices()
+async def payer(interaction: discord.Interaction, montant: int, cible: typing.Optional[discord.Role] = None):
     # Cherche le premier rôle pays du membre qui a de l'argent
     user_roles = [r for r in interaction.user.roles if str(r.id) in balances and balances[str(r.id)] > 0]
     if not user_roles:
@@ -1309,40 +1311,19 @@ async def payer(interaction: discord.Interaction, montant: int, cible: typing.Op
         await interaction.response.send_message(
             "> Votre pays n'a pas assez d'argent pour payer.", ephemeral=True)
         return
-    # Paiement à un autre pays (rôle) ou joueur (avec pays)
-    if role:
-        cible_id = str(role.id)
+    if cible:
+        cible_id = str(cible.id)
         balances[pays_id] -= montant
         balances[cible_id] = balances.get(cible_id, 0) + montant
         save_balances(balances)
         embed = discord.Embed(
-            description=f"> {format_number(montant)} {MONNAIE_EMOJI} payés de {pays_role.mention} à {role.mention}.{INVISIBLE_CHAR}",
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} payés de {pays_role.mention} à {cible.mention}.{INVISIBLE_CHAR}",
             color=discord.Color.green()
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        return
-    elif cible:
-        # Cherche le premier rôle pays du destinataire
-        cible_roles = [r for r in cible.roles if str(r.id) in balances]
-        if not cible_roles:
-            await interaction.response.send_message(
-                "> Le destinataire n'a pas de pays pour recevoir l'argent.", ephemeral=True)
-            return
-        cible_role = cible_roles[0]
-        cible_id = str(cible_role.id)
-        balances[pays_id] -= montant
-        balances[cible_id] = balances.get(cible_id, 0) + montant
-        save_balances(balances)
-        embed = discord.Embed(
-            description=f"> {format_number(montant)} {MONNAIE_EMOJI} payés de {pays_role.mention} à {cible.mention} ({cible_role.mention}).{INVISIBLE_CHAR}",
-            color=discord.Color.green()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return
     else:
-        # Paiement au bot : l'argent est détruit
+        # Paiement au bot : l'argent est détruit, on ne save pas balances
         balances[pays_id] -= montant
-        save_balances(balances)
         embed = discord.Embed(
             description=f"> {format_number(montant)} {MONNAIE_EMOJI} ont été retirés de la circulation depuis {pays_role.mention}.{INVISIBLE_CHAR}",
             color=discord.Color.red()
