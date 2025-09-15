@@ -1534,6 +1534,20 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
     # Retirer tous les rôles automatiques et le rôle de continent
     continent_role = None
     auto_roles = []
+    # Liste des rôles à retirer automatiquement (mêmes IDs que dans creer_pays)
+    auto_roles_ids = [
+        1413995329656852662,
+        1413997188089909398,
+        1413993747515052112,
+        1413995073632207048,
+        1413993786001985567,
+        1413994327473918142,
+        1413994277029023854,
+        1413993819292045315,
+        1413994233622302750,
+        1413995459827077190,
+        1410289640170328244  # Rôle joueur
+    ]
     try:
         for membre in membres_dirigeants:
             # Retirer le rôle de pays
@@ -1564,6 +1578,7 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         await interaction.followup.send(embed=embed)
         
         # Log de l'action
+        raison_text = f"Raison : {raison}" if raison else ""
         log_embed = discord.Embed(
             title="🗑️ | Suppression de pays",
             description=(
@@ -2250,12 +2265,12 @@ async def mp(interaction: discord.Interaction):
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
+    restore_all_json_from_postgres()  # restauration auto avant tout chargement local
+    load_all_data()
     check_duplicate_json_files()
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     atexit.register(exit_handler)
-    restore_all_json_from_postgres()  # restauration auto avant tout chargement local
-    load_all_data()
     print("Démarrage du bot...")
     try:
         bot.run(TOKEN)
