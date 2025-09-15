@@ -1,5 +1,3 @@
-
-
 """
 #!/usr/bin/env python3
 Bot Discord pour la gestion d'économie.
@@ -26,6 +24,39 @@ def restore_all_json_from_postgres():
             print(f"Restauration automatique : {filename}")
     except Exception as e:
         print(f"Erreur lors de la restauration automatique depuis PostgreSQL : {e}")
+
+def save_all_json_to_postgres():
+    """Sauvegarde balances, balances_backup, loans, transactions dans PostgreSQL."""
+    import psycopg2
+    import os
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    if not DATABASE_URL:
+        print("DATABASE_URL non défini, sauvegarde PostgreSQL ignorée.")
+        return
+    files = [
+        ("balances.json", os.path.join(DATA_DIR, "balances.json")),
+        ("balances_backup.json", os.path.join(DATA_DIR, "balances_backup.json")),
+        ("loans.json", os.path.join(DATA_DIR, "loans.json")),
+        ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
+    ]
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                for filename, filepath in files:
+                    if os.path.exists(filepath):
+                        with open(filepath, "r") as f:
+                            content = f.read()
+                        cur.execute("""
+                            INSERT INTO json_backups (filename, content, updated_at)
+                            VALUES (%s, %s, NOW())
+                            ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                        """, (filename, content))
+                conn.commit()
+        print("Sauvegarde automatique des fichiers JSON vers PostgreSQL effectuée.")
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde automatique vers PostgreSQL : {e}")
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -348,38 +379,6 @@ def save_personnel(personnel_data):
             json.dump(personnel_data, f)
     except Exception as e:
         print(f"Erreur lors de la sauvegarde du personnel: {e}")
-
-def load_status_channel():
-    """Charge les données du canal de notification de statut."""
-    if not os.path.exists(STATUS_CHANNEL_FILE):
-        with open(STATUS_CHANNEL_FILE, "w") as f:
-            json.dump({}, f)
-    try:
-        with open(STATUS_CHANNEL_FILE, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Erreur lors du chargement du canal de statut: {e}")
-        return {}
-
-def load_pays_images():
-    """Charge les images des pays depuis le fichier."""
-    if not os.path.exists(PAYS_IMAGES_FILE):
-        with open(PAYS_IMAGES_FILE, "w") as f:
-            json.dump({}, f)
-    try:
-        with open(PAYS_IMAGES_FILE, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Erreur lors du chargement des images de pays: {e}")
-        return {}
-
-def save_pays_images(data):
-    """Sauvegarde les images des pays dans le fichier."""
-    try:
-        with open(PAYS_IMAGES_FILE, "w") as f:
-            json.dump(data, f)
-    except Exception as e:
-        print(f"Erreur lors de la sauvegarde des images de pays: {e}")
 
 def load_pays_log_channel():
     """Charge les données du canal de log des pays."""
@@ -1146,6 +1145,7 @@ async def creer_pays(
         save_balances(balances)
         save_personnel(personnel)
         save_pays_images(pays_images)
+        save_all_json_to_postgres()
         
         # Embed de confirmation
         embed = discord.Embed(
@@ -1259,6 +1259,7 @@ async def modifier_image_pays(
     # Enregistrer la nouvelle image
     pays_images[role_id] = image
     save_pays_images(pays_images)
+    save_all_json_to_postgres()
     
     # Confirmation
     embed = discord.Embed(
@@ -1336,6 +1337,7 @@ async def payer(interaction: discord.Interaction, montant: int, cible: typing.Op
         balances[pays_id] -= montant
         balances[cible_id] = balances.get(cible_id, 0) + montant
         save_balances(balances)
+        save_all_json_to_postgres()
         embed = discord.Embed(
             description=f"> {format_number(montant)} {MONNAIE_EMOJI} payés de {pays_role.mention} à {cible.mention}.{INVISIBLE_CHAR}",
             color=discord.Color.green()
@@ -1439,6 +1441,7 @@ async def add_argent(interaction: discord.Interaction, role: discord.Role, monta
     role_id = str(role.id)
     balances[role_id] = balances.get(role_id, 0) + montant
     save_balances(balances)
+    save_all_json_to_postgres()
     embed = discord.Embed(
         description=f"> {format_number(montant)} {MONNAIE_EMOJI} ajoutés à {role.mention}. Nouveau solde : {format_number(balances[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
         color=discord.Color.green()
@@ -1462,6 +1465,7 @@ async def remove_argent(interaction: discord.Interaction, role: discord.Role, mo
         return
     balances[role_id] = solde - montant
     save_balances(balances)
+    save_all_json_to_postgres()
     embed = discord.Embed(
         description=f"> {format_number(montant)} {MONNAIE_EMOJI} retirés à {role.mention}. Nouveau solde : {format_number(balances[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
         color=discord.Color.red()
@@ -1554,6 +1558,7 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         save_balances(balances)
         save_personnel(personnel)
         save_pays_images(pays_images)
+        save_all_json_to_postgres()
         
         # Pour chaque dirigeant, retirer les rôles
         for dirigeant in membres_dirigeants:
@@ -1702,6 +1707,7 @@ async def modifier_pays(
                     couleur = couleur[1:]
                 color_value = int(couleur, 16)
                 await role.edit(color=discord.Color(color_value))
+
                 modifications.append("couleur du rôle")
             except ValueError:
                 await interaction.followup.send("> Format de couleur invalide. La couleur n'a pas été modifiée.", ephemeral=True)
