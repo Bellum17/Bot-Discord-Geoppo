@@ -976,6 +976,39 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Asie", value="1413995874304004157"),
     discord.app_commands.Choice(name="Océanie", value="1413996176956461086")
 ])
+@app_commands.choices(economie=[
+    discord.app_commands.Choice(name="Économie ultra-libérale", value="1417234199353622569"),
+    discord.app_commands.Choice(name="Économie libérale", value="1417234220115431434"),
+    discord.app_commands.Choice(name="Économie mixte", value="1417234887508754584"),
+    discord.app_commands.Choice(name="Socialisme de marché", value="1417234944832442621"),
+    discord.app_commands.Choice(name="Économie planifiée", value="1417234931146555433"),
+    discord.app_commands.Choice(name="Économie dirigiste", value="1417235038168289290"),
+    discord.app_commands.Choice(name="Économie corporatiste", value="1417235052814794853")
+])
+@app_commands.choices(regime_politique=[
+    discord.app_commands.Choice(name="Démocratie", value="1417251476782448843"),
+    discord.app_commands.Choice(name="Autoritarisme", value="1417251480573968525"),
+    discord.app_commands.Choice(name="Totalitarisme", value="1417251556776218654"),
+    discord.app_commands.Choice(name="Monarchie", value="1417251565068226691"),
+    discord.app_commands.Choice(name="Oligarchie", value="1417251568327200828"),
+    discord.app_commands.Choice(name="Théocratie", value="1417251571661537320"),
+    discord.app_commands.Choice(name="Technocratie", value="1417251574568456232"),
+    discord.app_commands.Choice(name="Régime populaire", value="1417251577714053170"),
+    discord.app_commands.Choice(name="Régime militaire", value="1417252579766829076")
+])
+@app_commands.choices(gouvernement=[
+    discord.app_commands.Choice(name="Régime parlementaire", value="1417254283694313652"),
+    discord.app_commands.Choice(name="Régime présidentielle", value="1417254315684528330"),
+    discord.app_commands.Choice(name="République parlementaire", value="1417254344180371636"),
+    discord.app_commands.Choice(name="République présidentielle", value="1417254681243025428"),
+    discord.app_commands.Choice(name="Monarchie parlementaire", value="1417254399004246161"),
+    discord.app_commands.Choice(name="Monarchie absolue", value="1417254501110251540"),
+    discord.app_commands.Choice(name="Gouvernement directorial", value="1417254550951428147"),
+    discord.app_commands.Choice(name="Gouvernement de Transition", value="1417254582156791908"),
+    discord.app_commands.Choice(name="Gouvernement populaire", value="1417254615224680508"),
+    discord.app_commands.Choice(name="Stratocratie", value="1417254639069560904"),
+    discord.app_commands.Choice(name="Aucun gouvernement", value="1417254809253314590")
+])
 async def creer_pays(
     interaction: discord.Interaction, 
     nom: str,
