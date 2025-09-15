@@ -1403,7 +1403,12 @@ async def reset_economie(interaction: discord.Interaction):
         if interaction2.user.id != interaction.user.id:
             await interaction2.response.send_message("Vous n'êtes pas autorisé à confirmer cette action.", ephemeral=True)
             return
-        # Vider les fichiers JSON économiques
+        # Vider les variables en mémoire
+        global balances, loans, personnel
+        balances.clear()
+        loans.clear()
+        personnel.clear()
+        # Sauvegarder les fichiers vides
         for file_path, empty_value in [
             (BALANCE_FILE, {}),
             (BALANCE_BACKUP_FILE, {}),
@@ -1417,8 +1422,6 @@ async def reset_economie(interaction: discord.Interaction):
             except Exception as e:
                 await interaction2.response.send_message(f"Erreur lors de la suppression de {os.path.basename(file_path)} : {e}", ephemeral=True)
                 return
-        # Recharger les données en mémoire
-        load_all_data()
         await interaction2.response.edit_message(content="✅ Économie réinitialisée avec succès !", view=None)
 
     async def cancel_callback(interaction2: discord.Interaction):
