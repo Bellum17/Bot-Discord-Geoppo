@@ -7,3 +7,4 @@ matplotlib
 cartopy
 shapely
 numpy
+psycopg2-binary
