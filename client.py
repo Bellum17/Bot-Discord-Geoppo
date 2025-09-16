@@ -55,8 +55,8 @@ def save_all_json_to_postgres():
                                 ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
                             """, (filename, content))
                             print(f"[DEBUG] Requête SQL exécutée pour {filename}.")
-                print("[DEBUG] Commit de la transaction PostgreSQL...")
-                conn.commit()
+            print("[DEBUG] Commit de la transaction PostgreSQL...")
+            conn.commit()
         print("Sauvegarde automatique des fichiers JSON vers PostgreSQL effectuée.")
     except Exception as e:
         print(f"Erreur lors de la sauvegarde automatique vers PostgreSQL : {e}")
@@ -1659,13 +1659,15 @@ async def remove_argent(interaction: discord.Interaction, role: discord.Role, mo
     if montant > solde:
         await interaction.response.send_message("> Le rôle n'a pas assez d'argent.", ephemeral=True)
         return
-    balances[role_id] = solde - montant
+    # Vérification et retrait du montant
+    nouveau_solde = solde - montant
+    balances[role_id] = nouveau_solde
     print("[DEBUG] Sauvegarde balances.json après retrait d'argent...")
     save_balances(balances)
     print("[DEBUG] Sauvegarde PostgreSQL après retrait d'argent...")
     save_all_json_to_postgres()
     embed = discord.Embed(
-        description=f"> {format_number(montant)} {MONNAIE_EMOJI} retirés à {role.mention}. Nouveau solde : {format_number(balances[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+        description=f"> {format_number(montant)} {MONNAIE_EMOJI} retirés à {role.mention}. Nouveau solde : {format_number(nouveau_solde)} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
         color=discord.Color.red()
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
