@@ -1853,6 +1853,37 @@ async def remove_argent(interaction: discord.Interaction, role: discord.Role, mo
 @app_commands.checks.has_permissions(administrator=True)
 
 async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, raison: str = None):
+        # Suppression des transactions liées au pays
+        try:
+            DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+            transactions_path = os.path.join(DATA_DIR, "transactions.json")
+            import json
+            with open(transactions_path, "r") as f:
+                transactions = json.load(f)
+            # Filtrer toutes les transactions où le pays supprimé n'est ni source ni destination
+            transactions = [t for t in transactions if str(pays.id) not in (str(t.get("source")), str(t.get("destination")))]
+            with open(transactions_path, "w") as f:
+                json.dump(transactions, f)
+            # Mettre à jour le backup PostgreSQL
+            try:
+                import psycopg2, os
+                DATABASE_URL = os.getenv("DATABASE_URL")
+                if DATABASE_URL:
+                    with psycopg2.connect(DATABASE_URL) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("DELETE FROM json_backups WHERE filename = %s", ("transactions.json",))
+                            with open(transactions_path, "r") as f:
+                                content = f.read()
+                            cur.execute("""
+                                INSERT INTO json_backups (filename, content, updated_at)
+                                VALUES (%s, %s, NOW())
+                                ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                            """, ("transactions.json", content))
+                        conn.commit()
+            except Exception as err:
+                print(f"[ERROR] Suppression transactions pays dans PostgreSQL : {err}")
+        except Exception as err:
+            print(f"[ERROR] Suppression transactions pays dans JSON : {err}")
     """Supprime un pays, son rôle et son salon."""
     await interaction.response.defer(ephemeral=True)
     try:
