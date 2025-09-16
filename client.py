@@ -1160,14 +1160,21 @@ async def creer_pays(
                 embed_links=True, attach_files=True, add_reactions=True
             )
         }
-        channel = await interaction.guild.create_text_channel(
-            name=channel_name,
-            category=categorie,
-            overwrites=overwrites
-        )
-    # Stocker l'ID du salon principal pour suppression future (persistant)
-    pays_log_channel_data[str(role.id)] = channel.id
-    save_pays_log_channel(pays_log_channel_data)
+        try:
+            channel = await interaction.guild.create_text_channel(
+                name=channel_name,
+                category=categorie,
+                overwrites=overwrites
+            )
+            # Stocker l'ID du salon principal pour suppression future (persistant)
+            pays_log_channel_data[str(role.id)] = channel.id
+            save_pays_log_channel(pays_log_channel_data)
+        except Exception as e:
+            await interaction.followup.send(f"> Erreur lors de la création du salon principal : {e}", ephemeral=True)
+            return
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors de la création du rôle ou du salon principal : {e}", ephemeral=True)
+        return
 
         # Créer le salon secret si un nom est fourni et une catégorie spécifiée
         secret_channel = None
