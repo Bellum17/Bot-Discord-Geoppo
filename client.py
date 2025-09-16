@@ -1109,13 +1109,10 @@ async def creer_pays(
 
         # Positionner le rôle pays juste en dessous du rôle de continent
         try:
-            TECH_ROLE_ID = 1413993747515052112
+            server_roles = await interaction.guild.fetch_roles()
             continent_position = continent_role.position
-            tech_role = interaction.guild.get_role(TECH_ROLE_ID)
-            tech_position = tech_role.position if tech_role else 1
-            # Calculer la position cible : juste sous le continent, mais jamais sous le rôle technique
-            target_position = max(tech_position + 1, continent_position - 1)
-            await interaction.guild.edit_role_positions({role.id: target_position})
+            positions = {role: continent_position}
+            await interaction.guild.edit_role_positions(positions)
         except Exception as e:
             print(f"[ERROR] Positionnement du rôle pays : {e}")
 
