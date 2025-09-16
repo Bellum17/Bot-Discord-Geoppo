@@ -1889,9 +1889,9 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
     """Supprime un pays, son rôle et son salon."""
     # Suppression des transactions liées au pays
     try:
+        import os, json
         DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         transactions_path = os.path.join(DATA_DIR, "transactions.json")
-        import json
         with open(transactions_path, "r") as f:
             transactions = json.load(f)
         # Filtrer toutes les transactions où le pays supprimé n'est ni source ni destination
@@ -1944,17 +1944,22 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                 role_selected = interaction.guild.get_role(role_id)
                 if role_selected and role_selected in membre.roles:
                     await membre.remove_roles(role_selected)
-                # Retirer le rôle de religion
-                roles_religion = [
-                    1417622211329659010, 1417622670702280845, 1417622925745586206,
-                    1417623400695988245, 1417624032131682304, 1417624442905038859,
-                    1417625845425766562, 1417626007770366123, 1417626204885745805,
-                    1417626362738512022
-                ]
-                for role_id in roles_religion:
-                    role_religion = interaction.guild.get_role(role_id)
-                    if role_religion and role_religion in membre.roles:
-                        await membre.remove_roles(role_religion)
+            # Retirer le rôle de religion
+            roles_religion = [
+                1417622211329659010, 1417622670702280845, 1417622925745586206,
+                1417623400695988245, 1417624032131682304, 1417624442905038859,
+                1417625845425766562, 1417626007770366123, 1417626204885745805,
+                1417626362738512022
+            ]
+            for role_id in roles_religion:
+                role_religion = interaction.guild.get_role(role_id)
+                if role_religion and role_religion in membre.roles:
+                    await membre.remove_roles(role_religion)
+            # Retirer les rôles de base
+            for base_role_id in [1417619445060206682, 1417619843611627530]:
+                base_role = interaction.guild.get_role(base_role_id)
+                if base_role and base_role in membre.roles:
+                    await membre.remove_roles(base_role)
             # Ajouter le rôle 1393344053608710315
             role_ajouter = interaction.guild.get_role(1393344053608710315)
             if role_ajouter and role_ajouter not in membre.roles:
