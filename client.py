@@ -997,6 +997,18 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Régime militaire", value="1417252579766829076")
 ])
 @app_commands.choices(gouvernement=[
+    discord.app_commands.Choice(name="Régime parlementaire", value="1417254283694313652"),
+    discord.app_commands.Choice(name="Régime présidentielle", value="1417254315684528330"),
+    discord.app_commands.Choice(name="République parlementaire", value="1417254344180371636"),
+    discord.app_commands.Choice(name="République présidentielle", value="1417254681243025428"),
+    discord.app_commands.Choice(name="Monarchie parlementaire", value="1417254399004246161"),
+    discord.app_commands.Choice(name="Monarchie absolue", value="1417254501110251540"),
+    discord.app_commands.Choice(name="Gouvernement directorial", value="1417254550951428147"),
+    discord.app_commands.Choice(name="Gouvernement de Transition", value="1417254582156791908"),
+    discord.app_commands.Choice(name="Gouvernement populaire", value="1417254615224680508"),
+    discord.app_commands.Choice(name="Stratocratie", value="1417254639069560904"),
+    discord.app_commands.Choice(name="Aucun gouvernement", value="1417254809253314590")
+])
 @app_commands.choices(religion=[
     discord.app_commands.Choice(name="Catholicisme", value="1417622211329659010"),
     discord.app_commands.Choice(name="Protestantisme", value="1417622670702280845"),
@@ -1009,17 +1021,17 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
     discord.app_commands.Choice(name="Athéisme", value="1417626362738512022")
 ])
-    discord.app_commands.Choice(name="Régime parlementaire", value="1417254283694313652"),
-    discord.app_commands.Choice(name="Régime présidentielle", value="1417254315684528330"),
-    discord.app_commands.Choice(name="République parlementaire", value="1417254344180371636"),
-    discord.app_commands.Choice(name="République présidentielle", value="1417254681243025428"),
-    discord.app_commands.Choice(name="Monarchie parlementaire", value="1417254399004246161"),
-    discord.app_commands.Choice(name="Monarchie absolue", value="1417254501110251540"),
-    discord.app_commands.Choice(name="Gouvernement directorial", value="1417254550951428147"),
-    discord.app_commands.Choice(name="Gouvernement de Transition", value="1417254582156791908"),
-    discord.app_commands.Choice(name="Gouvernement populaire", value="1417254615224680508"),
-    discord.app_commands.Choice(name="Stratocratie", value="1417254639069560904"),
-    discord.app_commands.Choice(name="Aucun gouvernement", value="1417254809253314590")
+@app_commands.choices(religion=[
+    discord.app_commands.Choice(name="Catholicisme", value="1417622211329659010"),
+    discord.app_commands.Choice(name="Protestantisme", value="1417622670702280845"),
+    discord.app_commands.Choice(name="Orthodoxie", value="1417622925745586206"),
+    discord.app_commands.Choice(name="Sunnisme", value="1417623400695988245"),
+    discord.app_commands.Choice(name="Chiisme", value="1417624032131682304"),
+    discord.app_commands.Choice(name="Judaïsme", value="1417624442905038859"),
+    discord.app_commands.Choice(name="Hindouisme", value="1417625845425766562"),
+    discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
+    discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
+    discord.app_commands.Choice(name="Athéisme", value="1417626362738512022")
 ])
 async def creer_pays(
     interaction: discord.Interaction, 
@@ -1037,7 +1049,8 @@ async def creer_pays(
     categorie_secret: discord.CategoryChannel = None,
     economie: str = None,
     regime_politique: str = None,
-    gouvernement: str = None
+    gouvernement: str = None,
+    religion: str = None
 ):
     """Crée un nouveau pays avec son rôle et son salon."""
     await interaction.response.defer()
@@ -1921,6 +1934,17 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                 role_selected = interaction.guild.get_role(role_id)
                 if role_selected and role_selected in membre.roles:
                     await membre.remove_roles(role_selected)
+                # Retirer le rôle de religion
+                roles_religion = [
+                    1417622211329659010, 1417622670702280845, 1417622925745586206,
+                    1417623400695988245, 1417624032131682304, 1417624442905038859,
+                    1417625845425766562, 1417626007770366123, 1417626204885745805,
+                    1417626362738512022
+                ]
+                for role_id in roles_religion:
+                    role_religion = interaction.guild.get_role(role_id)
+                    if role_religion and role_religion in membre.roles:
+                        await membre.remove_roles(role_religion)
             # Ajouter le rôle 1393344053608710315
             role_ajouter = interaction.guild.get_role(1393344053608710315)
             if role_ajouter and role_ajouter not in membre.roles:
@@ -2077,18 +2101,18 @@ async def modifier_pays(
         if nouveau_dirigeant:
             ancien_dirigeant = None
             for membre in role.members:
-            # Ajout des rôles de base
-            for base_role_id in [1417619445060206682, 1417619843611627530]:
-                base_role = interaction.guild.get_role(base_role_id)
-                if base_role and base_role not in membre.roles:
-                    await membre.add_roles(base_role)
-            if religion:
-                role_religion = interaction.guild.get_role(int(religion))
-                if role_religion:
-                    await membre.add_roles(role_religion)
-                if membre != nouveau_dirigeant:
-                    ancien_dirigeant = membre
-                    break
+                # Ajout des rôles de base
+                for base_role_id in [1417619445060206682, 1417619843611627530]:
+                    base_role = interaction.guild.get_role(base_role_id)
+                    if base_role and base_role not in membre.roles:
+                        await membre.add_roles(base_role)
+                if religion:
+                    role_religion = interaction.guild.get_role(int(religion))
+                    if role_religion:
+                        await membre.add_roles(role_religion)
+                    if membre != nouveau_dirigeant:
+                        ancien_dirigeant = membre
+                        # break  # Removed invalid break statement
             auto_roles_ids = [
                 1413995329656852662, 1413997188089909398, 1413993747515052112, 1413995073632207048,
                 1413993786001985567, 1413994327473918142, 1413994277029023854, 1413993819292045315,
