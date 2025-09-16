@@ -1106,9 +1106,177 @@ async def creer_pays(
         print(f"[DEBUG] Enregistrement du budget pour le pays {role.id} : {budget}")
         balances[str(role.id)] = budget
         save_balances(balances)
+
+        # Création du salon principal
+        formatted_name = convert_to_bold_letters(nom)
+        channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-') }"
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            role: discord.PermissionOverwrite(
+                read_messages=True, send_messages=True, read_message_history=True,
+                embed_links=True, attach_files=True, add_reactions=True
+            )
+        }
+        print(f"[DEBUG] Création du salon principal : {channel_name}")
+        channel = await interaction.guild.create_text_channel(
+            name=channel_name,
+            category=categorie,
+            overwrites=overwrites
+        )
+        pays_log_channel_data[str(role.id)] = channel.id
+        save_pays_log_channel(pays_log_channel_data)
+        print(f"[DEBUG] Salon principal créé : {channel.name}")
+
+        # Ajout des rôles au dirigeant
+        try:
+            print("[DEBUG] Ajout des rôles au dirigeant...")
+            await dirigeant.add_roles(role)
+            await dirigeant.add_roles(continent_role)
+        except Exception as e:
+            print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
+
+        # Ajout du rôle joueur et retrait du rôle non-joueur
+        try:
+            print("[DEBUG] Ajout du rôle joueur et retrait du rôle non-joueur...")
+            role_joueur_id = 1410289640170328244
+            role_non_joueur_id = 1393344053608710315
+            role_joueur = interaction.guild.get_role(role_joueur_id)
+            role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
+            if role_joueur:
+                await dirigeant.add_roles(role_joueur)
+            if role_non_joueur and role_non_joueur in dirigeant.roles:
+                await dirigeant.remove_roles(role_non_joueur)
+        except Exception as e:
+            print(f"[ERROR] Ajout/retrait rôle joueur/non-joueur : {e}")
+
+        # Ajout des rôles automatiques
+        try:
+            print("[DEBUG] Ajout des rôles automatiques...")
+            for auto_role_id in auto_roles_ids:
+                auto_role = interaction.guild.get_role(auto_role_id)
+                if auto_role:
+                    await dirigeant.add_roles(auto_role)
+        except Exception as e:
+            print(f"[ERROR] Ajout des rôles automatiques : {e}")
+
+        # Enregistrement de l'image si fournie
+        try:
+            print("[DEBUG] Enregistrement de l'image du pays...")
+            if image and is_valid_image_url(image):
+                pays_images[str(role.id)] = image
+        except Exception as e:
+            print(f"[ERROR] Enregistrement image pays : {e}")
+
+        # Initialisation du personnel
+        try:
+            print("[DEBUG] Initialisation du personnel...")
+            personnel[str(role.id)] = {
+                "policiers": 0,
+                "soldats_actifs": 0,
+                "soldats_genie": 0,
+                "soldats_reservistes": 0,
+                "forces_speciales": 0,
+                "agents_secrets": 0
+            }
+        except Exception as e:
+            print(f"[ERROR] Initialisation personnel : {e}")
+
+        # Sauvegarde des données
+        try:
+            print("[DEBUG] Sauvegarde des données...")
+            save_balances(balances)
+            save_personnel(personnel)
+            save_pays_images(pays_images)
+            save_all_json_to_postgres()
+        except Exception as e:
+            print(f"[ERROR] Sauvegarde des données : {e}")
+
+        # Envoi du message embed de confirmation
+        try:
+            print("[DEBUG] Envoi du message embed de confirmation...")
+            embed = discord.Embed(
+                title="🏛️ Nouveau pays créé",
+                description=f"> **Pays:** {role.mention}\n"
+                    f"> **Continent:** {continent_role.mention}\n"
+                    f"> **Salon:** {channel.mention}\n"
+                    f"> **PIB:** {format_number(pib)} {MONNAIE_EMOJI}\n"
+                    f"> **Budget alloué:** {format_number(budget)} {MONNAIE_EMOJI}\n"
+                    f"> **Dirigeant:** {dirigeant.mention}{INVISIBLE_CHAR}",
+                color=EMBED_COLOR
+            )
+            embed.set_image(url=image if image and is_valid_image_url(image) else IMAGE_URL)
+            await interaction.followup.send(embed=embed)
+        except Exception as e:
+            print(f"[ERROR] Envoi embed confirmation : {e}")
+            await interaction.followup.send(f"> Pays créé, mais erreur lors de l'envoi du message : {e}", ephemeral=True)
+
+        # Créer le salon secret si demandé
+        if nom_salon_secret and categorie_secret:
+            try:
+                formatted_secret_name = convert_to_bold_letters(nom_salon_secret)
+                secret_channel_name = f"【{emoji_pays}】・{formatted_secret_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_secret_name.lower().replace(' ', '-') }"
+                secret_overwrites = {
+                    interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                    role: discord.PermissionOverwrite(
+                        read_messages=True,
+                        manage_webhooks=True,
+                        manage_messages=True
+                    )
+                }
+                secret_channel = await interaction.guild.create_text_channel(
+                    name=secret_channel_name,
+                    category=categorie_secret,
+                    overwrites=secret_overwrites
+                )
+            except Exception as e:
+                print(f"[ERROR] Création salon secret : {e}")
+                await interaction.followup.send(f"> Pays créé, mais erreur lors de la création du salon secret : {e}", ephemeral=True)
+
+        # Log de l'action
+        log_embed = discord.Embed(
+            title=f"🏛️ | Création de pays",
+            description=f"> **Administrateur :** {interaction.user.mention}\n> **Pays créé :** {role.mention}{INVISIBLE_CHAR}",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        log_embed.set_image(url=image if image and is_valid_image_url(image) else IMAGE_URL)
+        await send_log(interaction.guild, embed=log_embed)
+
+        # Log détaillé dans le canal de log des pays
+        pays_log_embed = discord.Embed(
+            title=f"🏛️ | Nouveau Pays : {nom}",
+            description=f"Un nouveau pays a rejoint la scène internationale!",
+            color=EMBED_COLOR
+        )
+        pays_log_embed.add_field(
+            name="Informations",
+            value=f"> **Nom :** {nom}\n"
+                f"> **Continent :** {continent_role.name}\n"
+                f"> **Rôle :** {role.mention}\n"
+                f"> **Salon :** {channel.mention}\n"
+                f"> **PIB :** {format_number(pib)} {MONNAIE_EMOJI}\n"
+                f"> **Créé par :** {interaction.user.mention}",
+            inline=False
+        )
+        pays_log_embed.add_field(
+            name="Gouvernement",
+            value=f"> **Dirigeant :** {dirigeant.mention}\n"
+                f"> **Budget alloué :** {format_number(budget)} {MONNAIE_EMOJI}",
+            inline=False
+        )
+        pays_log_embed.add_field(
+            name="Message officiel",
+            value=f"Nous souhaitons la bienvenue à {dirigeant.mention}, nouveau dirigeant de {role.mention} sur la scène internationale. Nous lui souhaitons succès et prospérité dans la conduite de cette nation!",
+            inline=False
+        )
+        pays_log_embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else None)
+        pays_log_embed.set_image(url=image if image and is_valid_image_url(image) else IMAGE_URL)
+        pays_log_embed.set_footer(text=f"Date de création : {datetime.datetime.now().strftime('%d/%m/%Y à %H:%M')}")
+        await send_pays_log(interaction.guild, pays_log_embed)
+
     except Exception as e:
-        await interaction.followup.send(f"> Erreur lors de la création du rôle pays : {e}", ephemeral=True)
-        print(f"[ERROR] Exception lors de la création du rôle pays : {e}")
+        await interaction.followup.send(f"> Erreur lors de la création du pays : {e}", ephemeral=True)
+        print(f"[ERROR] Exception dans creer_pays : {e}")
         return
 
         # Si un emoji personnalisé est fourni, essayer de l'appliquer comme icône du rôle
