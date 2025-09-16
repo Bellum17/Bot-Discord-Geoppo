@@ -1109,21 +1109,20 @@ async def creer_pays(
 
         # Positionner le rôle pays juste en dessous du rôle de continent
         try:
-            # Récupérer tous les rôles triés par position décroissante (plus le nombre est élevé, plus le rôle est haut)
-            all_roles = [r for r in sorted(interaction.guild.roles, key=lambda r: r.position, reverse=True) if isinstance(r, discord.Role)]
-            # Retirer le rôle pays de la liste
-            all_roles = [r for r in all_roles if r.id != role.id]
-            # Trouver l'index du continent
-            continent_idx = next((i for i, r in enumerate(all_roles) if r.id == continent_role.id), None)
-            # Placer le rôle pays juste après le continent
-            insert_idx = continent_idx + 1 if continent_idx is not None else len(all_roles)
-            all_roles.insert(insert_idx, role)
-            # Recalculer les positions (Discord: plus le nombre est élevé, plus le rôle est haut)
-            new_positions = {r.id: r.position for r in all_roles}
-            # Mettre à jour la position du rôle pays
-            new_positions[role.id] = all_roles[insert_idx - 1].position - 1 if insert_idx > 0 else all_roles[0].position + 1
+            TECH_ROLE_ID = 1413993747515052112
+            roles_sorted = sorted([r for r in interaction.guild.roles if isinstance(r, discord.Role)], key=lambda r: r.position, reverse=True)
+            roles_sorted = [r for r in roles_sorted if r.id != role.id]
+            continent_idx = next((i for i, r in enumerate(roles_sorted) if r.id == continent_role.id), None)
+            tech_idx = next((i for i, r in enumerate(roles_sorted) if r.id == TECH_ROLE_ID), None)
+            # Par défaut, placer juste sous le continent
+            insert_idx = continent_idx + 1 if continent_idx is not None else len(roles_sorted)
+            # Si cela le met en dessous du rôle technique, placer juste avant le rôle technique
+            if tech_idx is not None and insert_idx > tech_idx:
+                insert_idx = tech_idx
+            roles_sorted.insert(insert_idx, role)
+            new_positions = {r.id: len(roles_sorted) - i - 1 for i, r in enumerate(roles_sorted)}
             await interaction.guild.edit_role_positions(new_positions)
-            print(f"[DEBUG] Rôle de pays positionné strictement juste sous le continent choisi.")
+            print(f"[DEBUG] Rôle de pays positionné juste sous le continent, mais toujours au-dessus du rôle technique.")
         except Exception as e:
             print(f"[ERROR] Positionnement du rôle pays : {e}")
 
