@@ -17,11 +17,11 @@ def restore_all_json_from_postgres():
             with conn.cursor() as cur:
                 cur.execute("SELECT filename, content FROM json_backups")
                 files = cur.fetchall()
-        for filename, content in files:
-            filepath = os.path.join(DATA_DIR, filename)
-            with open(filepath, "w") as f:
-                f.write(content)
-            print(f"Restauration automatique : {filename}")
+            for filename, content in files:
+                filepath = os.path.join(DATA_DIR, filename)
+                with open(filepath, "w") as f:
+                    f.write(content)
+                print(f"Restauration automatique : {filename}")
     except Exception as e:
         print(f"Erreur lors de la restauration automatique depuis PostgreSQL : {e}")
 
@@ -44,17 +44,17 @@ def save_all_json_to_postgres():
         print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                for filename, filepath in files:
-                    if os.path.exists(filepath):
-                        with open(filepath, "r") as f:
-                            content = f.read()
-                        print(f"[DEBUG] Sauvegarde du fichier {filename} dans PostgreSQL...")
-                        cur.execute("""
-                            INSERT INTO json_backups (filename, content, updated_at)
-                            VALUES (%s, %s, NOW())
-                            ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
-                        """, (filename, content))
-                        print(f"[DEBUG] Requête SQL exécutée pour {filename}.")
+                    for filename, filepath in files:
+                        if os.path.exists(filepath):
+                            with open(filepath, "r") as f:
+                                content = f.read()
+                            print(f"[DEBUG] Sauvegarde du fichier {filename} dans PostgreSQL...")
+                            cur.execute("""
+                                INSERT INTO json_backups (filename, content, updated_at)
+                                VALUES (%s, %s, NOW())
+                                ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                            """, (filename, content))
+                            print(f"[DEBUG] Requête SQL exécutée pour {filename}.")
                 print("[DEBUG] Commit de la transaction PostgreSQL...")
                 conn.commit()
         print("Sauvegarde automatique des fichiers JSON vers PostgreSQL effectuée.")
@@ -967,6 +967,7 @@ def convert_to_bold_letters(text):
     nom_salon_secret="Nom du salon secret à créer (facultatif)",
     categorie_secret="Catégorie où créer le salon secret (facultatif)",
     economie="Type d'économie du pays (facultatif)",
+    regime_politique="Régime politique du pays (facultatif)",
     gouvernement="Forme de gouvernement du pays (facultatif)"
 )
 @app_commands.choices(continent=[
@@ -1101,6 +1102,14 @@ async def creer_pays(
                 pass  # Utiliser la couleur par défaut
         print(f"[DEBUG] Création du rôle pays : {role_name}")
         role = await interaction.guild.create_role(**role_kwargs)
+        # Enregistrement du budget dans balances
+        print(f"[DEBUG] Enregistrement du budget pour le pays {role.id} : {budget}")
+        balances[str(role.id)] = budget
+        save_balances(balances)
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors de la création du rôle pays : {e}", ephemeral=True)
+        print(f"[ERROR] Exception lors de la création du rôle pays : {e}")
+        return
 
         # Si un emoji personnalisé est fourni, essayer de l'appliquer comme icône du rôle
         if drapeau_perso:
