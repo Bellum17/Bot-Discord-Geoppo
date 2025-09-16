@@ -1632,21 +1632,14 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
             salon = interaction.guild.get_channel(int(salon_id))
             if salon:
                 salon_trouve = salon
-        # Si pas trouvé par ID, recherche par nom
+        # Si pas trouvé par ID, recherche par nom EXACT
         if not salon_trouve:
             salon_nom_cible = pays.name.lower().replace(' ', '-')
             for channel in interaction.guild.text_channels:
-                if salon_nom_cible in channel.name.lower():
+                if channel.name.lower() == salon_nom_cible:
                     salon_trouve = channel
                     break
-        # Si toujours pas trouvé, recherche par permissions (le rôle du pays peut parler/gérer)
-        if not salon_trouve:
-            for channel in interaction.guild.text_channels:
-                perms = channel.permissions_for(pays)
-                if perms.send_messages or perms.manage_messages or perms.manage_webhooks:
-                    salon_trouve = channel
-                    break
-        # Suppression du salon trouvé
+        # Suppression du salon trouvé (uniquement si trouvé par ID ou nom exact)
         if salon_trouve:
             try:
                 await salon_trouve.delete(reason=f"Suppression du pays {pays.name}")
