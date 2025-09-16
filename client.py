@@ -1107,6 +1107,14 @@ async def creer_pays(
         balances[str(role.id)] = budget
         save_balances(balances)
 
+        # Positionner le rôle pays juste en dessous du rôle de continent
+        try:
+            continent_position = continent_role.position
+            await interaction.guild.edit_role_positions({role.id: continent_position - 1})
+            print(f"[DEBUG] Rôle de pays positionné juste en dessous du continent {continent_role.name}")
+        except Exception as e:
+            print(f"[ERROR] Positionnement du rôle pays : {e}")
+
         # Création du salon principal
         formatted_name = convert_to_bold_letters(nom)
         channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-') }"
