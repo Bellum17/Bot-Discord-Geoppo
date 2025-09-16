@@ -1925,6 +1925,30 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         if str(pays.id) in balances:
             balances.pop(str(pays.id))
             save_balances(balances)
+            # Suppression dans PostgreSQL
+            try:
+                import psycopg2, os
+                DATABASE_URL = os.getenv("DATABASE_URL")
+                if DATABASE_URL:
+                    with psycopg2.connect(DATABASE_URL) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("DELETE FROM json_backups WHERE filename = %s", ("balances.json",))
+                            # Réenregistrer balances.json sans le pays supprimé
+                            import json
+                            DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+                            balances_path = os.path.join(DATA_DIR, "balances.json")
+                            with open(balances_path, "w") as f:
+                                json.dump(balances, f)
+                            with open(balances_path, "r") as f:
+                                content = f.read()
+                            cur.execute("""
+                                INSERT INTO json_backups (filename, content, updated_at)
+                                VALUES (%s, %s, NOW())
+                                ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                            """, ("balances.json", content))
+                        conn.commit()
+            except Exception as err:
+                print(f"[ERROR] Suppression balance pays dans PostgreSQL : {err}")
         # Supprimer le rôle du pays
         await pays.delete(reason=raison or "Suppression du pays")
         # Réponse à l'utilisateur
