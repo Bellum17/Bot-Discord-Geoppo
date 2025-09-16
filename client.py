@@ -1111,7 +1111,7 @@ async def creer_pays(
         try:
             TECH_ROLE_ID = 1413993747515052112
             # Récupérer tous les rôles triés par position décroissante
-            roles_sorted = sorted(interaction.guild.roles, key=lambda r: r.position, reverse=True)
+            roles_sorted = [r for r in sorted(interaction.guild.roles, key=lambda r: r.position, reverse=True) if isinstance(r, discord.Role)]
             # Retirer le rôle pays de la liste (il vient d'être créé)
             roles_sorted = [r for r in roles_sorted if r.id != role.id]
             # Trouver l'index du continent
