@@ -1165,11 +1165,9 @@ async def creer_pays(
             category=categorie,
             overwrites=overwrites
         )
-        # Stocker l'ID du salon principal pour suppression future
-        if 'pays_channels' not in globals():
-            global pays_channels
-            pays_channels = {}
-        pays_channels[str(role.id)] = channel.id
+    # Stocker l'ID du salon principal pour suppression future (persistant)
+    pays_log_channel_data[str(role.id)] = channel.id
+    save_pays_log_channel(pays_log_channel_data)
 
         # Créer le salon secret si un nom est fourni et une catégorie spécifiée
         secret_channel = None
