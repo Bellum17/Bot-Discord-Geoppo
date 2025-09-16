@@ -1110,26 +1110,12 @@ async def creer_pays(
         # Positionner le rôle pays juste en dessous du rôle de continent
         try:
             TECH_ROLE_ID = 1413993747515052112
-            roles_sorted = [r for r in sorted(interaction.guild.roles, key=lambda r: getattr(r, 'position', 0)) if isinstance(r, discord.Role) and r.id != role.id]
-            continent_idx = next((i for i, r in enumerate(roles_sorted) if r.id == continent_role.id), None)
-            tech_idx = next((i for i, r in enumerate(roles_sorted) if r.id == TECH_ROLE_ID), None)
-            # Placement : juste sous le continent, mais toujours juste au-dessus du rôle technique
-            if continent_idx is not None and tech_idx is not None:
-                if tech_idx == continent_idx + 1:
-                    insert_idx = tech_idx
-                else:
-                    insert_idx = continent_idx + 1
-            elif continent_idx is not None:
-                insert_idx = continent_idx + 1
-            elif tech_idx is not None:
-                insert_idx = tech_idx
-            else:
-                insert_idx = len(roles_sorted)
-            roles_sorted.insert(insert_idx, role)
-            # Vérification stricte : ne garder que les discord.Role
-            roles_sorted = [r for r in roles_sorted if isinstance(r, discord.Role)]
-            new_positions = {r.id: i for i, r in enumerate(roles_sorted)}
-            await interaction.guild.edit_role_positions(new_positions)
+            continent_position = continent_role.position
+            tech_role = interaction.guild.get_role(TECH_ROLE_ID)
+            tech_position = tech_role.position if tech_role else 1
+            # Calculer la position cible : juste sous le continent, mais jamais sous le rôle technique
+            target_position = max(tech_position + 1, continent_position - 1)
+            await interaction.guild.edit_role_positions({role.id: target_position})
         except Exception as e:
             print(f"[ERROR] Positionnement du rôle pays : {e}")
 
