@@ -1156,6 +1156,89 @@ async def creer_pays(
         save_pays_log_channel(pays_log_channel_data)
         print(f"[DEBUG] Salon principal créé : {channel.name}")
 
+        # Ajout des rôles au dirigeant
+        try:
+            print("[DEBUG] Ajout des rôles au dirigeant...")
+            await dirigeant.add_roles(role)
+            await dirigeant.add_roles(continent_role)
+        except Exception as e:
+            print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
+
+        # Ajout du rôle joueur et retrait du rôle non-joueur
+        try:
+            print("[DEBUG] Ajout du rôle joueur et retrait du rôle non-joueur...")
+            role_joueur_id = 1410289640170328244
+            role_non_joueur_id = 1393344053608710315
+            role_joueur = interaction.guild.get_role(role_joueur_id)
+            role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
+            if role_joueur:
+                await dirigeant.add_roles(role_joueur)
+            if role_non_joueur and role_non_joueur in dirigeant.roles:
+                await dirigeant.remove_roles(role_non_joueur)
+        except Exception as e:
+            print(f"[ERROR] Ajout/retrait rôle joueur/non-joueur : {e}")
+
+        # Ajout des rôles automatiques
+        try:
+            print("[DEBUG] Ajout des rôles automatiques...")
+            for auto_role_id in auto_roles_ids:
+                auto_role = interaction.guild.get_role(auto_role_id)
+                if auto_role:
+                    await dirigeant.add_roles(auto_role)
+        except Exception as e:
+            print(f"[ERROR] Ajout des rôles automatiques : {e}")
+
+        # Enregistrement de l'image si fournie
+        try:
+            print("[DEBUG] Enregistrement de l'image du pays...")
+            if image and is_valid_image_url(image):
+                pays_images[str(role.id)] = image
+        except Exception as e:
+            print(f"[ERROR] Enregistrement image pays : {e}")
+
+        # Initialisation du personnel
+        try:
+            print("[DEBUG] Initialisation du personnel...")
+            personnel[str(role.id)] = {
+                "policiers": 0,
+                "soldats_actifs": 0,
+                "soldats_genie": 0,
+                "soldats_reservistes": 0,
+                "forces_speciales": 0,
+                "agents_secrets": 0
+            }
+        except Exception as e:
+            print(f"[ERROR] Initialisation personnel : {e}")
+
+        # Sauvegarde des données
+        try:
+            print("[DEBUG] Sauvegarde des données...")
+            save_balances(balances)
+            save_personnel(personnel)
+            save_pays_images(pays_images)
+            save_all_json_to_postgres()
+        except Exception as e:
+            print(f"[ERROR] Sauvegarde des données : {e}")
+
+        # Envoi du message embed de confirmation
+        try:
+            print("[DEBUG] Envoi du message embed de confirmation...")
+            embed = discord.Embed(
+                title="🏛️ Nouveau pays créé",
+                description=f"> **Pays:** {role.mention}\n"
+                    f"> **Continent:** {continent_role.mention}\n"
+                    f"> **Salon:** {channel.mention}\n"
+                    f"> **PIB:** {format_number(pib)} {MONNAIE_EMOJI}\n"
+                    f"> **Budget alloué:** {format_number(budget)} {MONNAIE_EMOJI}\n"
+                    f"> **Dirigeant:** {dirigeant.mention}{INVISIBLE_CHAR}",
+                color=EMBED_COLOR
+            )
+            embed.set_image(url=image if image and is_valid_image_url(image) else IMAGE_URL)
+            await interaction.followup.send(embed=embed)
+        except Exception as e:
+            print(f"[ERROR] Envoi embed confirmation : {e}")
+            await interaction.followup.send(f"> Pays créé, mais erreur lors de l'envoi du message : {e}", ephemeral=True)
+
     except Exception as e:
         await interaction.followup.send(f"> Erreur lors de la création du rôle ou du salon principal : {e}", ephemeral=True)
         print(f"[ERROR] Exception dans creer_pays : {e}")
