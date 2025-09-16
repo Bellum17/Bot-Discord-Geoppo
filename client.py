@@ -1086,6 +1086,7 @@ async def creer_pays(
         if not continent_role:
             await interaction.followup.send(f"> Erreur: Rôle de continent introuvable (ID: {continent}).", ephemeral=True)
             return
+        print(f"[DEBUG] Rôle continent trouvé : {continent_role.name}")
 
         # Créer le rôle
         role_name = f"{emoji_pays}・❝ ｢ {nom} ｣ ❞" if emoji_pays else f"❝ ｢ {nom} ｣ ❞"
@@ -1098,6 +1099,7 @@ async def creer_pays(
                 role_kwargs["color"] = discord.Color(color_value)
             except ValueError:
                 pass  # Utiliser la couleur par défaut
+        print(f"[DEBUG] Création du rôle pays : {role_name}")
         role = await interaction.guild.create_role(**role_kwargs)
 
         # Si un emoji personnalisé est fourni, essayer de l'appliquer comme icône du rôle
@@ -1130,7 +1132,7 @@ async def creer_pays(
             continent_position = continent_role.position
             positions = {role: continent_position - 1}
             await interaction.guild.edit_role_positions(positions)
-            print(f"Rôle de pays positionné juste en dessous du continent {continent_role.name}")
+            print(f"[DEBUG] Rôle de pays positionné juste en dessous du continent {continent_role.name}")
         except Exception as e:
             print(f"Erreur lors du positionnement du rôle: {e}")
 
@@ -1144,6 +1146,7 @@ async def creer_pays(
                 embed_links=True, attach_files=True, add_reactions=True
             )
         }
+        print(f"[DEBUG] Création du salon principal : {channel_name}")
         channel = await interaction.guild.create_text_channel(
             name=channel_name,
             category=categorie,
@@ -1151,9 +1154,11 @@ async def creer_pays(
         )
         pays_log_channel_data[str(role.id)] = channel.id
         save_pays_log_channel(pays_log_channel_data)
+        print(f"[DEBUG] Salon principal créé : {channel.name}")
 
     except Exception as e:
         await interaction.followup.send(f"> Erreur lors de la création du rôle ou du salon principal : {e}", ephemeral=True)
+        print(f"[ERROR] Exception dans creer_pays : {e}")
         return
 
         # Créer le salon secret si un nom est fourni et une catégorie spécifiée
@@ -1306,7 +1311,7 @@ async def creer_pays(
         await send_pays_log(interaction.guild, pays_log_embed)
         
     except Exception as e:
-        await interaction.followup.send(f"> Erreur lors de la création du pays: {e}", ephemeral=True)
+        await interaction.followup.send(f"> Erreur inattendue ou blocage lors de la création du pays : {e}", ephemeral=True)
 
 # Ajouter une commande pour modifier l'image d'un pays
 @bot.tree.command(name="modifier_image_pays", description="Modifie l'image d'un pays")
