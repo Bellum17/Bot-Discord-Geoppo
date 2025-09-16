@@ -1110,20 +1110,23 @@ async def creer_pays(
         # Positionner le rôle pays juste en dessous du rôle de continent
         try:
             TECH_ROLE_ID = 1413993747515052112
-            # Filtrage strict : uniquement les objets discord.Role
-            roles_sorted = [r for r in sorted(interaction.guild.roles, key=lambda r: getattr(r, 'position', 0), reverse=True) if isinstance(r, discord.Role)]
-            roles_sorted = [r for r in roles_sorted if isinstance(r, discord.Role) and hasattr(r, 'id') and r.id != role.id]
-            continent_idx = next((i for i, r in enumerate(roles_sorted) if isinstance(r, discord.Role) and hasattr(r, 'id') and r.id == continent_role.id), None)
-            tech_idx = next((i for i, r in enumerate(roles_sorted) if isinstance(r, discord.Role) and hasattr(r, 'id') and r.id == TECH_ROLE_ID), None)
+            # Tri par position croissante (Discord : 0 = tout en bas)
+            roles_sorted = [r for r in sorted(interaction.guild.roles, key=lambda r: getattr(r, 'position', 0)) if isinstance(r, discord.Role)]
+            print("[DIAG] Hiérarchie AVANT déplacement :")
+            for r in roles_sorted:
+                print(f"  {r.position:3d} | {r.name} | ID: {r.id}")
+            roles_sorted = [r for r in roles_sorted if r.id != role.id]
+            continent_idx = next((i for i, r in enumerate(roles_sorted) if r.id == continent_role.id), None)
+            tech_idx = next((i for i, r in enumerate(roles_sorted) if r.id == TECH_ROLE_ID), None)
             insert_idx = continent_idx + 1 if continent_idx is not None else len(roles_sorted)
             if tech_idx is not None and insert_idx > tech_idx:
                 insert_idx = tech_idx
             roles_sorted.insert(insert_idx, role)
-            try:
-                new_positions = {r.id: len(roles_sorted) - i - 1 for i, r in enumerate(roles_sorted) if isinstance(r, discord.Role) and hasattr(r, 'id')}
-            except Exception as err:
-                print("[DIAG] Types dans roles_sorted:", [type(r) for r in roles_sorted])
-                raise err
+            print("[DIAG] Hiérarchie APRES déplacement :")
+            for i, r in enumerate(roles_sorted):
+                print(f"  {i:3d} | {r.name} | ID: {r.id}")
+            # Mapping direct : {r.id: i}
+            new_positions = {r.id: i for i, r in enumerate(roles_sorted)}
             await interaction.guild.edit_role_positions(new_positions)
             print(f"[DEBUG] Rôle de pays positionné juste sous le continent, mais toujours au-dessus du rôle technique.")
         except Exception as e:
