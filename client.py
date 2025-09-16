@@ -1086,11 +1086,9 @@ async def creer_pays(
         if not continent_role:
             await interaction.followup.send(f"> Erreur: Rôle de continent introuvable (ID: {continent}).", ephemeral=True)
             return
-            
+
         # Créer le rôle
         role_name = f"{emoji_pays}・❝ ｢ {nom} ｣ ❞" if emoji_pays else f"❝ ｢ {nom} ｣ ❞"
-        
-        # Gestion de la couleur
         role_kwargs = {"name": role_name}
         if couleur:
             try:
@@ -1100,32 +1098,23 @@ async def creer_pays(
                 role_kwargs["color"] = discord.Color(color_value)
             except ValueError:
                 pass  # Utiliser la couleur par défaut
-        
-        # Créer le rôle
         role = await interaction.guild.create_role(**role_kwargs)
-        
+
         # Si un emoji personnalisé est fourni, essayer de l'appliquer comme icône du rôle
         if drapeau_perso:
             try:
-                # Vérifier si c'est un emoji personnalisé
                 emoji_id = None
                 if drapeau_perso.startswith('<') and drapeau_perso.endswith('>'):
-                    # Format <:name:id>
                     emoji_parts = drapeau_perso.strip('<>').split(':')
                     if len(emoji_parts) >= 3:
                         emoji_id = int(emoji_parts[2])
-                
                 if emoji_id:
-                    # Récupérer l'emoji du serveur
                     emoji = await interaction.guild.fetch_emoji(emoji_id)
                     if emoji:
-                        # Récupérer l'image de l'emoji
                         async with aiohttp.ClientSession() as session:
                             async with session.get(str(emoji.url)) as resp:
                                 if resp.status == 200:
                                     emoji_bytes = await resp.read()
-                                    
-                                    # Essayer d'appliquer l'emoji comme icône du rôle
                                     try:
                                         await role.edit(display_icon=emoji_bytes)
                                     except discord.Forbidden:
@@ -1134,25 +1123,20 @@ async def creer_pays(
                                         print(f"Erreur lors de l'application de l'icône de rôle: {e}")
             except Exception as e:
                 print(f"Erreur lors du traitement de l'emoji personnalisé: {e}")
-        
+
         # Trouver la position correcte pour le nouveau rôle de pays
         try:
-            # Récupérer tous les rôles du serveur
             server_roles = await interaction.guild.fetch_roles()
-            
-            # Position du rôle de continent sélectionné
             continent_position = continent_role.position
-            
-            # Positionner le nouveau rôle JUSTE en dessous du continent sélectionné
             positions = {role: continent_position - 1}
             await interaction.guild.edit_role_positions(positions)
             print(f"Rôle de pays positionné juste en dessous du continent {continent_role.name}")
         except Exception as e:
             print(f"Erreur lors du positionnement du rôle: {e}")
-        
+
         # Créer le salon principal
         formatted_name = convert_to_bold_letters(nom)
-        channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-')}"
+        channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-') }"
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             role: discord.PermissionOverwrite(
@@ -1160,18 +1144,14 @@ async def creer_pays(
                 embed_links=True, attach_files=True, add_reactions=True
             )
         }
-        try:
-            channel = await interaction.guild.create_text_channel(
-                name=channel_name,
-                category=categorie,
-                overwrites=overwrites
-            )
-            # Stocker l'ID du salon principal pour suppression future (persistant)
-            pays_log_channel_data[str(role.id)] = channel.id
-            save_pays_log_channel(pays_log_channel_data)
-        except Exception as e:
-            await interaction.followup.send(f"> Erreur lors de la création du salon principal : {e}", ephemeral=True)
-            return
+        channel = await interaction.guild.create_text_channel(
+            name=channel_name,
+            category=categorie,
+            overwrites=overwrites
+        )
+        pays_log_channel_data[str(role.id)] = channel.id
+        save_pays_log_channel(pays_log_channel_data)
+
     except Exception as e:
         await interaction.followup.send(f"> Erreur lors de la création du rôle ou du salon principal : {e}", ephemeral=True)
         return
