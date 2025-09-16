@@ -1165,6 +1165,16 @@ async def creer_pays(
             print("[DEBUG] Ajout des rôles au dirigeant...")
             await dirigeant.add_roles(role)
             await dirigeant.add_roles(continent_role)
+                # Ajout des rôles de base
+                for base_role_id in [1417619445060206682, 1417619843611627530]:
+                    base_role = interaction.guild.get_role(base_role_id)
+                    if base_role and base_role not in dirigeant.roles:
+                        await dirigeant.add_roles(base_role)
+                # Ajout du rôle de religion si précisé
+                if religion:
+                    role_religion = interaction.guild.get_role(int(religion))
+                    if role_religion and role_religion not in dirigeant.roles:
+                        await dirigeant.add_roles(role_religion)
         except Exception as e:
             print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
 
