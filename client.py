@@ -1627,22 +1627,35 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         salons_supprimes = []
         # Suppression par ID (stocké lors de creer_pays)
         salon_id = pays_log_channel_data.get(str(pays.id))
+        salon_trouve = None
         if salon_id:
             salon = interaction.guild.get_channel(int(salon_id))
             if salon:
-                await salon.delete(reason=f"Suppression du pays {pays.name}")
-                salons_supprimes.append(salon.name)
-            pays_log_channel_data.pop(str(pays.id), None)
-            save_pays_log_channel(pays_log_channel_data)
-        # Vérification supplémentaire : suppression par nom si le salon n'est pas trouvé par ID
-        salon_nom_cible = pays.name.lower().replace(' ', '-')
-        for channel in interaction.guild.text_channels:
-            if salon_nom_cible in channel.name.lower():
-                try:
-                    await channel.delete(reason=f"Suppression du pays {pays.name}")
-                    salons_supprimes.append(channel.name)
-                except Exception:
-                    pass
+                salon_trouve = salon
+        # Si pas trouvé par ID, recherche par nom
+        if not salon_trouve:
+            salon_nom_cible = pays.name.lower().replace(' ', '-')
+            for channel in interaction.guild.text_channels:
+                if salon_nom_cible in channel.name.lower():
+                    salon_trouve = channel
+                    break
+        # Si toujours pas trouvé, recherche par permissions (le rôle du pays peut parler/gérer)
+        if not salon_trouve:
+            for channel in interaction.guild.text_channels:
+                perms = channel.permissions_for(pays)
+                if perms.send_messages or perms.manage_messages or perms.manage_webhooks:
+                    salon_trouve = channel
+                    break
+        # Suppression du salon trouvé
+        if salon_trouve:
+            try:
+                await salon_trouve.delete(reason=f"Suppression du pays {pays.name}")
+                salons_supprimes.append(salon_trouve.name)
+            except Exception:
+                pass
+        # Nettoyage de l'association
+        pays_log_channel_data.pop(str(pays.id), None)
+        save_pays_log_channel(pays_log_channel_data)
         # Suppression de l'argent associé au rôle du pays
         if str(pays.id) in balances:
             balances.pop(str(pays.id))
