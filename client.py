@@ -1111,7 +1111,7 @@ async def creer_pays(
         try:
             server_roles = await interaction.guild.fetch_roles()
             continent_position = continent_role.position
-            positions = {role: continent_position}
+            positions = {role: continent_position - 1}
             await interaction.guild.edit_role_positions(positions)
         except Exception as e:
             print(f"[ERROR] Positionnement du rôle pays : {e}")
