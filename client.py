@@ -1632,11 +1632,22 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
             salon = interaction.guild.get_channel(int(salon_id))
             if salon:
                 salon_trouve = salon
-        # Si pas trouvé par ID, recherche par nom EXACT
+        # Si pas trouvé par ID, recherche par nom EXACT généré comme dans creer_pays
         if not salon_trouve:
-            salon_nom_cible = pays.name.lower().replace(' ', '-')
+            # Récupérer l'emoji utilisé dans le nom du salon (si possible)
+            emoji_pays = ""
+            # On tente de récupérer l'emoji du nom du rôle (si présent)
+            if pays.name.startswith("【") and "】" in pays.name:
+                emoji_pays = pays.name.split("【")[1].split("】")[0]
+            # Récupérer le nom du pays sans emoji ni décorations
+            nom_pays_brut = pays.name
+            if "】・" in nom_pays_brut:
+                nom_pays_brut = nom_pays_brut.split("】・", 1)[1]
+            # Reconstruire le nom du salon
+            formatted_name = nom_pays_brut
+            channel_name = f"【{emoji_pays}】・{formatted_name}".lower().replace(" ", "-")
             for channel in interaction.guild.text_channels:
-                if channel.name.lower() == salon_nom_cible:
+                if channel.name == channel_name:
                     salon_trouve = channel
                     break
         # Suppression du salon trouvé (uniquement si trouvé par ID ou nom exact)
