@@ -997,6 +997,18 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Régime militaire", value="1417252579766829076")
 ])
 @app_commands.choices(gouvernement=[
+@app_commands.choices(religion=[
+    discord.app_commands.Choice(name="Catholicisme", value="1417622211329659010"),
+    discord.app_commands.Choice(name="Protestantisme", value="1417622670702280845"),
+    discord.app_commands.Choice(name="Orthodoxie", value="1417622925745586206"),
+    discord.app_commands.Choice(name="Sunnisme", value="1417623400695988245"),
+    discord.app_commands.Choice(name="Chiisme", value="1417624032131682304"),
+    discord.app_commands.Choice(name="Judaïsme", value="1417624442905038859"),
+    discord.app_commands.Choice(name="Hindouisme", value="1417625845425766562"),
+    discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
+    discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
+    discord.app_commands.Choice(name="Athéisme", value="1417626362738512022")
+])
     discord.app_commands.Choice(name="Régime parlementaire", value="1417254283694313652"),
     discord.app_commands.Choice(name="Régime présidentielle", value="1417254315684528330"),
     discord.app_commands.Choice(name="République parlementaire", value="1417254344180371636"),
@@ -2040,7 +2052,8 @@ async def modifier_pays(
     nouveau_dirigeant: discord.Member = None,
     economie: str = None,
     regime_politique: str = None,
-    gouvernement: str = None
+    gouvernement: str = None,
+    religion: str = None
 ):
     """Modifie le nom et/ou le dirigeant d'un pays existant."""
     await interaction.response.defer()
@@ -2064,6 +2077,15 @@ async def modifier_pays(
         if nouveau_dirigeant:
             ancien_dirigeant = None
             for membre in role.members:
+            # Ajout des rôles de base
+            for base_role_id in [1417619445060206682, 1417619843611627530]:
+                base_role = interaction.guild.get_role(base_role_id)
+                if base_role and base_role not in membre.roles:
+                    await membre.add_roles(base_role)
+            if religion:
+                role_religion = interaction.guild.get_role(int(religion))
+                if role_religion:
+                    await membre.add_roles(role_religion)
                 if membre != nouveau_dirigeant:
                     ancien_dirigeant = membre
                     break
