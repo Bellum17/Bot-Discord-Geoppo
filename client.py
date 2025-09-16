@@ -1126,6 +1126,8 @@ async def creer_pays(
             else:
                 insert_idx = len(roles_sorted)
             roles_sorted.insert(insert_idx, role)
+            # Vérification stricte : ne garder que les discord.Role
+            roles_sorted = [r for r in roles_sorted if isinstance(r, discord.Role)]
             new_positions = {r.id: i for i, r in enumerate(roles_sorted)}
             await interaction.guild.edit_role_positions(new_positions)
         except Exception as e:
