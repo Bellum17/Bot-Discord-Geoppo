@@ -36,7 +36,6 @@ def save_all_json_to_postgres():
         return
     files = [
         ("balances.json", os.path.join(DATA_DIR, "balances.json")),
-        ("balances_backup.json", os.path.join(DATA_DIR, "balances_backup.json")),
         ("loans.json", os.path.join(DATA_DIR, "loans.json")),
         ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
     ]
