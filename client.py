@@ -3304,6 +3304,7 @@ async def creer_stats_voice_channels(interaction: discord.Interaction, categorie
         color=0xefe7c5
     )
     await interaction.followup.send(embed=embed, ephemeral=True)
+
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
     restore_all_json_from_postgres()
