@@ -1470,6 +1470,11 @@ async def creer_pays(
                 await interaction.followup.send(f"> Pays créé, mais erreur lors de la création du salon secret : {e}", ephemeral=True)
 
         # Log de l'action
+        modifications = []
+        modifications.append("Pays créé")
+        modifications.append("Rôle attribué")
+        modifications.append("Salon créé")
+        modifications.append("Budget initialisé")
         log_embed = discord.Embed(
             title=f"🏛️ | Création de pays",
             description=f"> **Administrateur :** {interaction.user.mention}\n> **Pays créé : ** {role.mention}\n> **Modifications : ** {', '.join(modifications)}{INVISIBLE_CHAR}",
@@ -3114,7 +3119,7 @@ async def remboursement(
             f"> **Montant remboursé :** {montant}\n"
             f"> **Intérêt payé :** {interet}\n"
             f"> **Emprunt restant :** {reste_apres}\n"
-            f"> **Crédité à :** {role_id if emprunt["role_id"] else 'Banque centrale'}{INVISIBLE_CHAR}"
+            f"> **Crédité à :** {'Banque centrale' if emprunt['role_id'] is None else emprunt['role_id']}{INVISIBLE_CHAR}"
         ),
         color=EMBED_COLOR,
         timestamp=datetime.datetime.now()
