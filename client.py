@@ -892,13 +892,13 @@ async def on_message(message):
                         embed = discord.Embed(
                             description=(
                                 "⠀\n"
-                                f"> {message.author.mention} est passé au **niveau {levels[user_id]['level']} !** 🎉\n"
-                                f"> **Il obtiens le grade de <@&{palier_roles[palier]}> !**\n"
+                                f"> # {message.author.mention} est passé au **niveau {levels[user_id]['level']} !** 🎉\n"
+                                f"> **Il obtiens le grade de {new_role.mention} !**\n"
                                 "⠀"
                             ),
-                            color=0x162e50
+                            color=0xebe3bd
                         )
-                        embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417949639281475594/PAX_RUINAE_1.gif?ex=68cc5802&is=68cb0682&hm=521f45fcb263a2b9c310a7ad1b846e95a212b7073284bf22999ecb601b3b65fb&")
+                        embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
                         await channel.send(embed=embed)
         # Log passage de niveau (embed stylisé)
         lvl_channel_id = lvl_log_channel_data.get(guild_id)
@@ -908,12 +908,12 @@ async def on_message(message):
                 embed = discord.Embed(
                     description=(
                         "⠀\n"
-                        f"> {message.author.mention} est passé au **niveau {levels[user_id]['level']} !** 🎉\n"
+                        f"> # {message.author.mention} est passé au **niveau {levels[user_id]['level']} !** 🎉\n"
                         "⠀"
                     ),
-                    color=0x162e50
+                    color=0xebe3bd
                 )
-                embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417949639281475594/PAX_RUINAE_1.gif?ex=68cc5802&is=68cb0682&hm=521f45fcb263a2b9c310a7ad1b846e95a212b7073284bf22999ecb601b3b65fb&")
+                embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
                 await channel.send(embed=embed)
 # Commande pour ajouter de l'XP à un membre
 @bot.tree.command(name="add_xp", description="Ajoute de l'XP à un membre")
