@@ -3091,7 +3091,7 @@ async def classement_lvl(interaction: discord.Interaction):
                 medal = f"{rank}."
             member = interaction.guild.get_member(int(user_id))
             if member:
-                desc += f"> {medal} : {member.mention} - Niveau {data['level']}\n"
+                desc += f"> {medal} : {member.mention} - **Niveau {data['level']}**\n"
         desc += "⠀"
         embed = discord.Embed(
             title="🔝 | Classement en Niveaux",
