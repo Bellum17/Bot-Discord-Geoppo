@@ -3069,6 +3069,7 @@ async def classement_lvl(interaction: discord.Interaction):
             color=0x162e50
         )
         embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417982063839154318/PAX_RUINAE_4.gif?ex=68cc7634&is=68cb24b4&hm=5c7411791192069f1030b0aef0e51be790bb957c288658954070e2cc2f1d862c&")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417981197899792565/Sans_titre_1024_x_1024_px_3.png?ex=68cc7566&is=68cb23e6&hm=8e0c7eb0093be4cb173de373bc050949d1efb52fa2e974de8b3dd2acd3b5deaa&")
         return embed
 
     class ClassementView(discord.ui.View):
@@ -3123,7 +3124,7 @@ async def classement_lvl(interaction: discord.Interaction):
 
     class ClassementView(discord.ui.View):
         def __init__(self, pages):
-            super().__init__(timeout=60)
+            super().__init__(timeout=600)
             self.pages = pages
             self.page_idx = 0
             self.message = None
