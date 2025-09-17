@@ -2849,6 +2849,7 @@ async def set_lvl(interaction: discord.Interaction):
         return
     levels = {}
     save_levels(levels)
+    save_all_json_to_postgres()
     await interaction.response.send_message(
         "Système de niveau activé !", ephemeral=True)
 
