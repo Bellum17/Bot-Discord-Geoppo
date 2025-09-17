@@ -241,13 +241,32 @@ class MyBot(commands.Bot):
         print("Synchronisation globale des commandes slash (tous les serveurs)...")
         try:
             cmds = await self.tree.sync()
+            print(f"Commandes globales synchronisées ({len(cmds)}) : {[c.name for c in cmds]}")
         except Exception as e:
-            print(f"Erreur lors de la synchronisation des commandes slash : {e}")
-        await verify_economy_data(self)
+            print(f"Erreur lors de la synchronisation globale : {e}")
+        
+        # Démarrer les tâches planifiées
+        auto_save_economy.start()
+        verify_and_fix_balances.start()
+        
+        print("Bot prêt et tâches planifiées démarrées.")
 
-
-# Instanciation du bot (doit être avant toute utilisation de @bot.event)
+# Création de l'instance du bot
 bot = MyBot()
+
+# Synchronisation forcée des commandes slash sur le serveur de test à chaque démarrage
+@bot.event
+async def on_ready():
+    print(f'Bot connecté en tant que {bot.user.name}')
+    GUILD_ID = 1393301496283795640
+    guild = discord.Object(id=GUILD_ID)
+    try:
+        cmds = await bot.tree.sync(guild=guild)
+        print(f"Commandes synchronisées sur le serveur {GUILD_ID} ({len(cmds)}) : {[c.name for c in cmds]}")
+    except Exception as e:
+        print(f"Erreur lors de la synchronisation des commandes : {e}")
+    await restore_mutes_on_start()
+    await verify_economy_data(bot)
 
 # Variables globales pour les données
 balances = {}
@@ -770,6 +789,40 @@ async def on_error(event, *args, **kwargs):
     """Gère les erreurs d'événements."""
     print(f"Erreur dans l'événement {event}: {sys.exc_info()[0]}")
 
+# Ajout de l'événement on_message pour l'XP
+xp_system_active = False
+
+@bot.event
+async def on_message(message):
+    global xp_system_active
+    if message.author.bot or not message.guild:
+        return
+    if not xp_system_active:
+        await bot.process_commands(message)
+        return
+    user_id = str(message.author.id)
+    guild_id = str(message.guild.id)
+    if user_id not in levels:
+        levels[user_id] = {"xp": 0, "level": 1}
+    levels[user_id]["xp"] += 1
+    xp = levels[user_id]["xp"]
+    level = levels[user_id]["level"]
+    next_level_xp = xp_for_level(level)
+    if xp >= next_level_xp:
+        levels[user_id]["level"] += 1
+        levels[user_id]["xp"] = xp - next_level_xp
+        save_levels(levels)
+        # Log passage de niveau
+        lvl_channel_id = lvl_log_channel_data.get(guild_id)
+        if lvl_channel_id:
+            channel = message.guild.get_channel(int(lvl_channel_id))
+            if channel:
+                bar = get_progress_bar(levels[user_id]["xp"], levels[user_id]["level"])
+                await channel.send(f"🎉 {message.author.mention} est passé niveau {levels[user_id]['level']} !\n{bar}")
+    else:
+        save_levels(levels)
+    await bot.process_commands(message)
+
 # ===== COMMANDES DE BASE =====
 
 @bot.tree.command(name="setlogeconomy", description="Définit le salon de logs pour l'économie")
@@ -947,13 +1000,7 @@ def save_status_message():
 @bot.event
 async def on_ready():
     print(f'Bot connecté en tant que {bot.user.name}')
-    # Appel sécurisé de restore_mutes_on_start si elle existe et est async
-    import inspect
-    if 'restore_mutes_on_start' in globals() and callable(restore_mutes_on_start):
-        if inspect.iscoroutinefunction(restore_mutes_on_start):
-            await restore_mutes_on_start()
-        else:
-            restore_mutes_on_start()
+    await restore_mutes_on_start()
 
 # Fonction utilitaire pour convertir les majuscules en caractères spéciaux
 def is_valid_image_url(url):
