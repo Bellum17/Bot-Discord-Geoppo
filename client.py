@@ -166,7 +166,10 @@ def get_progress_bar(xp, level):
     total = xp_for_level(level)
     percent = int((xp / total) * 100) if total > 0 else 0
     filled = percent // 10
-    bar = "<:Barre2_Rempli:1417667907508244581>"
+    if percent == 0:
+        bar = "<:Barre2_Vide:1417667900596027522>"
+    else:
+        bar = "<:Barre2_Rempli:1417667907508244581>"
     for i in range(1, 10):
         if i <= filled:
             bar += "<:Barre1_Rempli:1417667903905595583>"
@@ -238,32 +241,9 @@ class MyBot(commands.Bot):
         print("Synchronisation globale des commandes slash (tous les serveurs)...")
         try:
             cmds = await self.tree.sync()
-            print(f"Commandes globales synchronisées ({len(cmds)}) : {[c.name for c in cmds]}")
         except Exception as e:
-            print(f"Erreur lors de la synchronisation globale : {e}")
-        
-        # Démarrer les tâches planifiées
-        auto_save_economy.start()
-        verify_and_fix_balances.start()
-        
-        print("Bot prêt et tâches planifiées démarrées.")
-
-# Création de l'instance du bot
-bot = MyBot()
-
-# Synchronisation forcée des commandes slash sur le serveur de test à chaque démarrage
-@bot.event
-async def on_ready():
-    print(f'Bot connecté en tant que {bot.user.name}')
-    GUILD_ID = 1393301496283795640
-    guild = discord.Object(id=GUILD_ID)
-    try:
-        cmds = await bot.tree.sync(guild=guild)
-        print(f"Commandes synchronisées sur le serveur {GUILD_ID} ({len(cmds)}) : {[c.name for c in cmds]}")
-    except Exception as e:
-        print(f"Erreur lors de la synchronisation des commandes : {e}")
-    await restore_mutes_on_start()
-    await verify_economy_data(bot)
+            print(f"Erreur lors de la synchronisation des commandes slash : {e}")
+        await verify_economy_data(self)
 
 # Variables globales pour les données
 balances = {}
