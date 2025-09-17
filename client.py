@@ -876,19 +876,37 @@ async def on_message(message):
                     old_role = message.guild.get_role(palier_roles[old_palier])
                     if old_role:
                         await member.remove_roles(old_role)
-                # Log d'attribution du rôle
+                # Log d'attribution du rôle (embed stylisé)
                 lvl_channel_id = lvl_log_channel_data.get(guild_id)
                 if lvl_channel_id:
                     channel = message.guild.get_channel(int(lvl_channel_id))
                     if channel:
-                        await channel.send(f"🏅 {message.author.mention} a obtenu le rôle <@&{palier_roles[palier]}> en atteignant le niveau {levels[user_id]['level']} !")
-        # Log passage de niveau
+                        embed = discord.Embed(
+                            description=(
+                                "⠀\n"
+                                f"> {message.author.mention} est passé au **niveau {levels[user_id]['level']} !** 🎉\n"
+                                f"> **Il obtiens le grade de <@&{palier_roles[palier]}> !**\n"
+                                "⠀"
+                            ),
+                            color=0x162e50
+                        )
+                        embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417949639281475594/PAX_RUINAE_1.gif?ex=68cc5802&is=68cb0682&hm=521f45fcb263a2b9c310a7ad1b846e95a212b7073284bf22999ecb601b3b65fb&")
+                        await channel.send(embed=embed)
+        # Log passage de niveau (embed stylisé)
         lvl_channel_id = lvl_log_channel_data.get(guild_id)
         if lvl_channel_id:
             channel = message.guild.get_channel(int(lvl_channel_id))
             if channel:
-                bar = get_progress_bar(levels[user_id]["xp"], levels[user_id]["level"])
-                await channel.send(f"🎉 {message.author.mention} est passé niveau {levels[user_id]['level']} !\n{bar}")
+                embed = discord.Embed(
+                    description=(
+                        "⠀\n"
+                        f"> {message.author.mention} est passé au **niveau {levels[user_id]['level']} !** 🎉\n"
+                        "⠀"
+                    ),
+                    color=0x162e50
+                )
+                embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417949639281475594/PAX_RUINAE_1.gif?ex=68cc5802&is=68cb0682&hm=521f45fcb263a2b9c310a7ad1b846e95a212b7073284bf22999ecb601b3b65fb&")
+                await channel.send(embed=embed)
 # Commande pour ajouter de l'XP à un membre
 @bot.tree.command(name="add_xp", description="Ajoute de l'XP à un membre")
 @app_commands.checks.has_permissions(administrator=True)
