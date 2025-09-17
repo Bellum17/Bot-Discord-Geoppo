@@ -3269,6 +3269,48 @@ async def update_stats_voice_channels(guild):
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 
+# === Mise à jour dynamique des salons vocaux de stats ===
+@bot.event
+async def on_member_update(before, after):
+    membres_role_id = 1393340583665209514
+    joueurs_role_id = 1410289640170328244
+    before_roles = set(r.id for r in before.roles)
+    after_roles = set(r.id for r in after.roles)
+    if membres_role_id in before_roles or membres_role_id in after_roles or joueurs_role_id in before_roles or joueurs_role_id in after_roles:
+        print(f"[DEBUG] Changement de rôle détecté pour {after.display_name} (avant: {before_roles}, après: {after_roles})")
+        guild = after.guild
+        if guild:
+            print(f"[DEBUG] Appel de update_stats_voice_channels pour guild: {guild.name} ({guild.id})")
+            await update_stats_voice_channels(guild)
+
+    category_id = 1418006771053887571
+    membres_role_id = 1393340583665209514
+    joueurs_role_id = 1410289640170328244
+    membres_channel_id = 1418018437485166741
+    joueurs_channel_id = 1418018437485166741
+    noms_salons = {
+        "membres": f"╭【👥】・𝗠embres : ",
+        "joueurs": f"╰【✅】・𝗝oueurs : "
+    }
+    membres_role = guild.get_role(membres_role_id)
+    joueurs_role = guild.get_role(joueurs_role_id)
+    membres_count = len(membres_role.members) if membres_role else 0
+    joueurs_count = len(joueurs_role.members) if joueurs_role else 0
+    membres_channel = guild.get_channel(membres_channel_id)
+    joueurs_channel = guild.get_channel(joueurs_channel_id)
+    membres_name = f"{noms_salons['membres']}{membres_count}"
+    joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
+    if membres_channel:
+        print(f"[DEBUG] Mise à jour du nom du salon Membres: {membres_channel.name} -> {membres_name}")
+        await membres_channel.edit(name=membres_name)
+    else:
+        print(f"[DEBUG] Salon Membres non trouvé (ID: {membres_channel_id})")
+    if joueurs_channel:
+        print(f"[DEBUG] Mise à jour du nom du salon Joueurs: {joueurs_channel.name} -> {joueurs_name}")
+        await joueurs_channel.edit(name=joueurs_name)
+    else:
+        print(f"[DEBUG] Salon Joueurs non trouvé (ID: {joueurs_channel_id})")
+
 @bot.tree.command(name="creer_stats_voice_channels", description="Crée les salons vocaux de stats dans la catégorie stats (temporaire)")
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(categorie="Catégorie où créer les salons vocaux de stats")
