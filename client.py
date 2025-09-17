@@ -116,6 +116,68 @@ PAYS_IMAGES_FILE = os.path.join(DATA_DIR, "pays_images.json")
 STATUS_CHANNEL_FILE = os.path.join(DATA_DIR, "status_channel.json")
 MUTE_LOG_FILE = os.path.join(DATA_DIR, "mute_log_channel.json")
 
+# === XP/LEVEL SYSTEM ===
+LVL_FILE = os.path.join(DATA_DIR, "levels.json")
+LVL_LOG_CHANNEL_FILE = os.path.join(DATA_DIR, "lvl_log_channel.json")
+
+def load_levels():
+    if not os.path.exists(LVL_FILE):
+        with open(LVL_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(LVL_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des niveaux: {e}")
+        return {}
+
+def save_levels(data):
+    try:
+        with open(LVL_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des niveaux: {e}")
+
+def load_lvl_log_channel():
+    if not os.path.exists(LVL_LOG_CHANNEL_FILE):
+        with open(LVL_LOG_CHANNEL_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(LVL_LOG_CHANNEL_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement du salon de log lvl: {e}")
+        return {}
+
+def save_lvl_log_channel(data):
+    try:
+        with open(LVL_LOG_CHANNEL_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde du salon de log lvl: {e}")
+
+levels = load_levels()
+lvl_log_channel_data = load_lvl_log_channel()
+
+def xp_for_level(level):
+    return level * 100
+
+def get_progress_bar(xp, level):
+    total = xp_for_level(level)
+    percent = int((xp / total) * 100) if total > 0 else 0
+    filled = percent // 10
+    bar = "<:Barre2_Rempli:1417667907508244581>"
+    for i in range(1, 10):
+        if i <= filled:
+            bar += "<:Barre1_Rempli:1417667903905595583>"
+        else:
+            bar += "<:Barre1_Vide:1417667899153186928>"
+    if percent == 100:
+        bar += "<:Barre3_Rempli:1417667906027913226>"
+    else:
+        bar += "<:Barre3_Vide:1417667902471147520>"
+    return f"{bar} — {percent}%"
+
 # Types de personnel et leurs coûts
 PERSONNEL_TYPES = {
     "policiers": {"nom": "Policier", "cout_recrutement": 150, "salaire_annuel": 1200},
@@ -2736,11 +2798,56 @@ async def mp(interaction: discord.Interaction):
             pass  # Ignore les membres qui n'acceptent pas les MP
     await interaction.followup.send(f"Message envoyé à {count} membres.", ephemeral=True)
 
+# === COMMANDES XP/LEVEL ===
+@bot.tree.command(name="set_lvl", description="Active le système de niveau (XP)")
+@app_commands.checks.has_permissions(administrator=True)
+async def set_lvl(interaction: discord.Interaction):
+    global levels
+    if levels:
+        await interaction.response.send_message(
+            "Le système de niveau est déjà actif.", ephemeral=True)
+        return
+    levels = {}
+    save_levels(levels)
+    await interaction.response.send_message(
+        "Système de niveau activé !", ephemeral=True)
+
+@bot.tree.command(name="set_channel_lvl", description="Définit le salon de log pour les passages de niveau")
+@app_commands.checks.has_permissions(administrator=True)
+async def set_channel_lvl(interaction: discord.Interaction, channel: discord.TextChannel):
+    lvl_log_channel_data[str(interaction.guild.id)] = channel.id
+    save_lvl_log_channel(lvl_log_channel_data)
+    await interaction.response.send_message(
+        f"Salon de log niveau défini sur {channel.mention}.", ephemeral=True)
+
+@bot.tree.command(name="lvl", description="Affiche votre niveau et progression XP")
+async def lvl(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    if user_id not in levels:
+        levels[user_id] = {"xp": 0, "level": 1}
+        save_levels(levels)
+    xp = levels[user_id]["xp"]
+    level = levels[user_id]["level"]
+    bar = get_progress_bar(xp, level)
+    embed = discord.Embed(
+        title=f"Niveau de {interaction.user.display_name}",
+        description=f"> **Niveau :** {level}\n> **XP :** {xp}/{xp_for_level(level)}\n{bar}",
+        color=EMBED_COLOR
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
     restore_all_json_from_postgres()  # restauration auto avant tout chargement local
     load_all_data()
+    # Charger les niveaux XP au démarrage
+    levels = load_levels()
+    lvl_log_channel_data = load_lvl_log_channel()
+    # Créer le fichier levels.json si absent
+    if not os.path.exists(LVL_FILE):
+        with open(LVL_FILE, "w") as f:
+            json.dump({}, f)
     check_duplicate_json_files()
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
