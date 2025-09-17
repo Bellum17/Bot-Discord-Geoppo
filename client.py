@@ -850,6 +850,38 @@ async def on_message(message):
         levels[user_id]["xp"] = xp - next_level_xp
         save_levels(levels)
         save_all_json_to_postgres()
+        # Gestion des rôles de palier
+        palier_roles = {
+            10: 1417893183903502468,
+            20: 1417893555376230570,
+            30: 1417893729066291391,
+            40: 1417893878136176680,
+            50: 1417894464122261555,
+            60: 1417894846844244139,
+            70: 1417895041862733986,
+            80: 1417895157553958922,
+            90: 1417895282443812884,
+            100: 1417895415273099404
+        }
+        palier = (levels[user_id]["level"] // 10) * 10
+        member = message.guild.get_member(message.author.id)
+        # Ajout du nouveau rôle de palier si atteint
+        if palier in palier_roles and member:
+            new_role = message.guild.get_role(palier_roles[palier])
+            if new_role:
+                await member.add_roles(new_role)
+                # Retrait de l'ancien rôle de palier
+                old_palier = palier - 10
+                if old_palier in palier_roles:
+                    old_role = message.guild.get_role(palier_roles[old_palier])
+                    if old_role:
+                        await member.remove_roles(old_role)
+                # Log d'attribution du rôle
+                lvl_channel_id = lvl_log_channel_data.get(guild_id)
+                if lvl_channel_id:
+                    channel = message.guild.get_channel(int(lvl_channel_id))
+                    if channel:
+                        await channel.send(f"🏅 {message.author.mention} a obtenu le rôle <@&{palier_roles[palier]}> en atteignant le niveau {levels[user_id]['level']} !")
         # Log passage de niveau
         lvl_channel_id = lvl_log_channel_data.get(guild_id)
         if lvl_channel_id:
@@ -857,6 +889,52 @@ async def on_message(message):
             if channel:
                 bar = get_progress_bar(levels[user_id]["xp"], levels[user_id]["level"])
                 await channel.send(f"🎉 {message.author.mention} est passé niveau {levels[user_id]['level']} !\n{bar}")
+# Commande pour ajouter de l'XP à un membre
+@bot.tree.command(name="add_xp", description="Ajoute de l'XP à un membre")
+@app_commands.checks.has_permissions(administrator=True)
+async def add_xp(interaction: discord.Interaction, membre: discord.Member, xp: int):
+    user_id = str(membre.id)
+    guild_id = str(interaction.guild.id)
+    if user_id not in levels:
+        levels[user_id] = {"xp": 0, "level": 1}
+    levels[user_id]["xp"] += xp
+    palier_roles = {
+        10: 1417893183903502468,
+        20: 1417893555376230570,
+        30: 1417893729066291391,
+        40: 1417893878136176680,
+        50: 1417894464122261555,
+        60: 1417894846844244139,
+        70: 1417895041862733986,
+        80: 1417895157553958922,
+        90: 1417895282443812884,
+        100: 1417895415273099404
+    }
+    while levels[user_id]["level"] < 100:
+        next_level_xp = xp_for_level(levels[user_id]["level"])
+        if levels[user_id]["xp"] >= next_level_xp:
+            levels[user_id]["level"] += 1
+            levels[user_id]["xp"] -= next_level_xp
+            palier = (levels[user_id]["level"] // 10) * 10
+            if palier in palier_roles:
+                new_role = interaction.guild.get_role(palier_roles[palier])
+                if new_role:
+                    await membre.add_roles(new_role)
+                    old_palier = palier - 10
+                    if old_palier in palier_roles:
+                        old_role = interaction.guild.get_role(palier_roles[old_palier])
+                        if old_role:
+                            await membre.remove_roles(old_role)
+                    lvl_channel_id = lvl_log_channel_data.get(guild_id)
+                    if lvl_channel_id:
+                        channel = interaction.guild.get_channel(int(lvl_channel_id))
+                        if channel:
+                            await channel.send(f"🏅 {membre.mention} a obtenu le rôle <@&{palier_roles[palier]}> en atteignant le niveau {levels[user_id]['level']} !")
+        else:
+            break
+    save_levels(levels)
+    save_all_json_to_postgres()
+    await interaction.response.send_message(f"{xp} XP ajoutés à {membre.mention}. Niveau actuel : {levels[user_id]['level']}", ephemeral=True)
     else:
         save_levels(levels)
         save_all_json_to_postgres()
