@@ -3032,11 +3032,11 @@ async def lvl(interaction: discord.Interaction):
             grade = role_obj.name
     embed = discord.Embed(
         title=f"Niveau de {interaction.user.display_name}",
-        description=f"⠀\n> − **Niveau :** {level}\n> − **Progression :**\n> {bar} | {percent}%\n" + (f"> − **Grade : {grade}**\n⠀" if grade else "⠀"),
+        description=f"⠀\n> − **Niveau :** {level}\n> − **Progression :**\n> {bar}\n" + (f"> − **Grade : {grade}**\n⠀" if grade else "⠀"),
         color=0xebe3bd
     )
     embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 
 @bot.tree.command(name="creer_emprunt", description="Crée un emprunt et attribue la somme au demandeur")
