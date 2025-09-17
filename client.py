@@ -272,15 +272,16 @@ bot = MyBot()
 @bot.tree.command(name="purge", description="Supprime un nombre de messages dans ce salon (max 1000)")
 @app_commands.checks.has_permissions(manage_messages=True)
 async def purge(interaction: discord.Interaction, nombre: int):
+    await interaction.response.defer(ephemeral=True)
     if nombre < 1 or nombre > 1000:
-        await interaction.response.send_message("Le nombre doit être entre 1 et 1000.", ephemeral=True)
+        await interaction.followup.send("Le nombre doit être entre 1 et 1000.", ephemeral=True)
         return
     channel = interaction.channel
     try:
         deleted = await channel.purge(limit=nombre)
-        await interaction.response.send_message(f"{len(deleted)} messages supprimés.", ephemeral=True)
+        await interaction.followup.send(f"{len(deleted)} messages supprimés.", ephemeral=True)
     except Exception as e:
-        await interaction.response.send_message(f"Erreur lors de la suppression : {e}", ephemeral=True)
+        await interaction.followup.send(f"Erreur lors de la suppression : {e}", ephemeral=True)
 
 # Synchronisation forcée des commandes slash sur le serveur de test à chaque démarrage
 @bot.event
@@ -2909,6 +2910,8 @@ async def lvl(interaction: discord.Interaction):
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
     restore_all_json_from_postgres()  # restauration auto avant tout chargement local
+    # Recharge l'état XP après restauration
+    xp_system_status = load_xp_system_status()
     load_all_data()
     # Charger les niveaux XP au démarrage
     levels = load_levels()
