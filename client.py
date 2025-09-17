@@ -1359,8 +1359,9 @@ async def creer_pays(
             role: discord.PermissionOverwrite(
                 read_messages=True, send_messages=True, read_message_history=True,
                 embed_links=True, attach_files=True, add_reactions=True
-            )
-        }
+        import asyncio
+        max_iterations = 100
+        iterations = 0
         print(f"[DEBUG] Création du salon principal : {channel_name}")
         channel = await interaction.guild.create_text_channel(
             name=channel_name,
@@ -1390,9 +1391,10 @@ async def creer_pays(
             print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
 
         # Ajout du rôle joueur et retrait du rôle non-joueur
-        try:
-            print("[DEBUG] Ajout du rôle joueur et retrait du rôle non-joueur...")
-            role_joueur_id = 1410289640170328244
+        await asyncio.sleep(0)
+        if iterations > max_iterations:
+            print("[DEBUG] Limite d'itérations atteinte, sortie de la boucle pour éviter un blocage.")
+            break
             role_non_joueur_id = 1393344053608710315
             role_joueur = interaction.guild.get_role(role_joueur_id)
             role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
