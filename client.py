@@ -3240,6 +3240,7 @@ async def update_stats_voice_channels(guild):
     }
     category = guild.get_channel(category_id)
     if not category or not isinstance(category, discord.CategoryChannel):
+        print(f"[STATS VOICE] Catégorie non trouvée ou invalide : {category}")
         return
     membres_role = guild.get_role(membres_role_id)
     joueurs_role = guild.get_role(joueurs_role_id)
@@ -3258,13 +3259,13 @@ async def update_stats_voice_channels(guild):
     if membres_channel:
         await membres_channel.edit(name=membres_name)
     else:
-        await guild.create_voice_channel(name=membres_name, category=category)
+        await category.create_voice_channel(name=membres_name)
     # Met à jour ou crée le salon Joueurs
     joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
     if joueurs_channel:
         await joueurs_channel.edit(name=joueurs_name)
     else:
-        await guild.create_voice_channel(name=joueurs_name, category=category)
+        await category.create_voice_channel(name=joueurs_name)
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
