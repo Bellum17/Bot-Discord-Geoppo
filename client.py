@@ -1118,7 +1118,14 @@ def is_valid_image_url(url):
     """Vérifie si l'URL pointe vers une image valide."""
     if not url:
         return False
-    
+    # ...existing code...
+    # Traitement XP, économie, etc. (déjà présent)
+    # Synchronisation automatique PostgreSQL à chaque message
+    try:
+        save_all_json_to_postgres()
+    except Exception as e:
+        print(f"[ERROR] Sauvegarde PostgreSQL après message : {e}")
+    # ...existing code...
     # Vérification simple des extensions d'image communes
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
     url_lower = url.lower()
@@ -1389,6 +1396,8 @@ async def creer_pays(
                 role_religion = interaction.guild.get_role(int(religion))
                 if role_religion and role_religion not in dirigeant.roles:
                     await dirigeant.add_roles(role_religion)
+        except Exception as e:
+            print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
         except Exception as e:
             print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
 
@@ -1782,11 +1791,11 @@ async def creer_pays(
         log_embed = discord.Embed(
             title=f"🏛️ | Création de pays",
             description=f"> **Administrateur :** {interaction.user.mention}\n"
-                       f"> **Pays créé :** {role.mention}\n"
-                       f"> **Continent :** {continent_role.mention}\n"
-                       f"> **PIB :** {format_number(pib)} {MONNAIE_EMOJI}\n"
-                       f"> **Dirigeant désigné :** {dirigeant.mention}\n"
-                       f"> **Budget alloué :** {format_number(budget)} {MONNAIE_EMOJI}"
+                       f"> **Pays créé : ** {role.mention}\n"
+                       f"> **Continent : ** {continent_role.mention}\n"
+                       f"> **PIB : ** {format_number(pib)} {MONNAIE_EMOJI}\n"
+                       f"> **Dirigeant désigné : ** {dirigeant.mention}\n"
+                       f"> **Budget alloué : ** {format_number(budget)} {MONNAIE_EMOJI}"
                        f"{INVISIBLE_CHAR}",
             color=EMBED_COLOR,
             timestamp=datetime.datetime.now()
@@ -1873,7 +1882,7 @@ async def modifier_image_pays(
     
     # Log de l'action
     log_embed = discord.Embed(
-        title=f"🏛️ | Modification d'image de pays",
+        title="🏛️ | Modification d'image de pays",
         description=f"> **Administrateur :** {interaction.user.mention}\n"
                    f"> **Pays modifié :** {role.mention}{INVISIBLE_CHAR}",
         color=EMBED_COLOR,
@@ -2130,7 +2139,10 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                             ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
                         """, ("transactions.json", content))
                     conn.commit()
-        except Exception as err:
+                print("[DEBUG] Données économiques supprimées de PostgreSQL.")
+    except Exception as e:
+                print(f"[DEBUG] Erreur lors de la suppression des données économiques dans PostgreSQL : {e}")
+    except Exception as err:
             print(f"[ERROR] Suppression transactions pays dans PostgreSQL : {err}")
     except Exception as err:
         print(f"[ERROR] Suppression transactions pays dans JSON : {err}")
@@ -3147,7 +3159,8 @@ async def remboursement(
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
-    restore_all_json_from_postgres()  # restauration auto avant tout chargement local
+    # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
+    restore_all_json_from_postgres()
     # Recharge l'état XP après restauration
     xp_system_status = load_xp_system_status()
     load_all_data()
