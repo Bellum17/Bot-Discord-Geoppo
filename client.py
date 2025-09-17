@@ -177,9 +177,7 @@ lvl_log_channel_data = load_lvl_log_channel()
 def xp_for_level(level):
     if level > 100:
         return None
-    if level is None or level < 1:
-        return 0
-    if level == 1:
+    if level <= 1:
         return 10
     elif level == 2:
         return 20
@@ -912,7 +910,7 @@ async def add_xp(interaction: discord.Interaction, membre: discord.Member, xp: i
         90: 1417895282443812884,
         100: 1417895415273099404
     }
-    while levels[user_id]["level"] < 100 and levels[user_id]["level"] >= 1:
+    while levels[user_id]["level"] < 100:
         next_level_xp = xp_for_level(levels[user_id]["level"])
         if levels[user_id]["xp"] >= next_level_xp:
             levels[user_id]["level"] += 1
@@ -951,17 +949,6 @@ async def setlogeconomy(interaction: discord.Interaction, channel: discord.TextC
     embed.set_image(url=IMAGE_URL)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="setlogmessage", description="Définit le salon de logs pour les messages")
-@app_commands.checks.has_permissions(administrator=True)
-async def setlogmessage(interaction: discord.Interaction, channel: discord.TextChannel):
-    message_log_channel_data[str(interaction.guild.id)] = channel.id
-    save_message_log_channel(message_log_channel_data)
-    embed = discord.Embed(
-        description=f"> Salon de logs de messages défini sur {channel.mention}.{INVISIBLE_CHAR}",
-        color=EMBED_COLOR
-    )
-    embed.set_image(url=IMAGE_URL)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="setstatus", description="Définit le statut du bot (En Ligne, En Direct, Hors-Ligne)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -977,63 +964,45 @@ async def setlogmessage(interaction: discord.Interaction, channel: discord.TextC
     discord.app_commands.Choice(name="Ne pas déranger", value="dnd")  # <-- Ajout ici
 ])
 async def setstatus(interaction: discord.Interaction, status: str, message: str = "Développer le Serveur", notification: bool = False):
-    """Définit le statut du bot."""
+    """Définit le statut du bot et sauvegarde le statut pour le restaurer après redéploiement."""
     await interaction.response.defer(ephemeral=True)
     global status_message_id
-    
     try:
-        # Récupérer l'horodatage actuel pour le format <t:timestamp:R>
         current_timestamp = int(time.time())
-        
+        status_data = {"status": status, "message": message}
+        # Sauvegarder le statut dans un fichier pour restauration
+        with open(os.path.join(DATA_DIR, "bot_status.json"), "w") as f:
+            json.dump(status_data, f)
+        # Appliquer le statut
         if status == "online":
-            # Statut En Ligne
-            await bot.change_presence(
-                activity=discord.Game(name=message),
-                status=discord.Status.online
-            )
+            await bot.change_presence(activity=discord.Game(name=message), status=discord.Status.online)
             status_icon = "<:Statuts_EnLigne:1413119886426771496>"
             status_name = "En Ligne"
-            status_color = 0x57F287  # Couleur verte
+            status_color = 0x57F287
             fonctionnement = "Normal"
         elif status == "streaming":
-            # Statut En Direct
-            streaming_activity = discord.Streaming(
-                name=message,
-                url="https://www.twitch.tv/discord"
-            )
-            await bot.change_presence(
-                activity=streaming_activity,
-                status=discord.Status.online
-            )
+            streaming_activity = discord.Streaming(name=message, url="https://www.twitch.tv/discord")
+            await bot.change_presence(activity=streaming_activity, status=discord.Status.online)
             status_icon = "<:Status_Direct:1413119409173561354>"
             status_name = "En Direct"
-            status_color = 0x593a93  # Couleur personnalisée pour En Direct
+            status_color = 0x593a93
             fonctionnement = "Normal"
         elif status == "offline":
-            # Statut Hors Ligne (invisible)
-            await bot.change_presence(
-                activity=None,
-                status=discord.Status.invisible
-            )
+            await bot.change_presence(activity=None, status=discord.Status.invisible)
             status_icon = "<:Statuts_HorsLigne:1413119891795476622>"
             status_name = "Hors Ligne"
-            status_color = 0xE74C3C  # Couleur rouge
+            status_color = 0xE74C3C
             fonctionnement = "Indisponible"
         elif status == "dnd":
-            # Statut Ne pas déranger
-            await bot.change_presence(
-                activity=discord.Game(name="Modification(s) en cours"),
-                status=discord.Status.dnd
-            )
+            await bot.change_presence(activity=discord.Game(name="Modification(s) en cours"), status=discord.Status.dnd)
             status_icon = "<:Status_NePasDeranger:1414411414570926120>"
             status_name = "Ne pas déranger"
-            status_color = 0xED4245  # Couleur rouge Discord
+            status_color = 0xED4245
             fonctionnement = "Modification(s) en cours"
             message = "Modification(s) en cours"
         else:
             await interaction.followup.send("> Statut non reconnu. Utilisez En Ligne, En Direct, Hors Ligne ou Ne pas déranger.", ephemeral=True)
             return
-        
         log_embed = discord.Embed(
             description=(
                 f"> **Administrateur:** {interaction.user.mention}\n"
@@ -1044,32 +1013,25 @@ async def setstatus(interaction: discord.Interaction, status: str, message: str 
             timestamp=datetime.datetime.now()
         )
         await send_log(interaction.guild, embed=log_embed)
-        
-        # Si la notification est activée, envoyer un message dans le salon de statut
         if notification:
-            # Récupérer le salon de status
             status_channel_id = status_channel_data.get(str(interaction.guild.id))
             if status_channel_id:
                 status_channel = interaction.guild.get_channel(int(status_channel_id))
                 if status_channel:
-                    # Supprimer l'ancien message de statut s'il existe
                     if status_message_id:
                         try:
                             old_message = await status_channel.fetch_message(status_message_id)
                             await old_message.delete()
                         except discord.NotFound:
-                            pass  # Le message a déjà été supprimé
+                            pass
                         except Exception as e:
                             print(f"Erreur lors de la suppression de l'ancien message de statut: {e}")
-                    
-                    # Créer un embed de notification sans mentionner qui a fait le changement
                     status_embed = discord.Embed(
                         title=f"{status_icon} | Status : {status_name}",
                         description=f"> **État actuel:** {fonctionnement}\n"
                                    f"> **Dernière mise à jour:** <t:{current_timestamp}:R>{INVISIBLE_CHAR}",
                         color=status_color
                     )
-                    
                     status_embed.set_image(url=IMAGE_URL)
                     new_message = await status_channel.send(embed=status_embed)
                     status_message_id = new_message.id
@@ -1077,7 +1039,6 @@ async def setstatus(interaction: discord.Interaction, status: str, message: str 
                     await interaction.followup.send("> Salon de status non trouvé. Veuillez configurer un salon avec /setstatus_channel", ephemeral=True)
             else:
                 await interaction.followup.send("> Aucun salon de status configuré. Veuillez configurer un salon avec /setstatus_channel", ephemeral=True)
-        
     except Exception as e:
         await interaction.followup.send(f"> Erreur lors du changement de statut: {e}", ephemeral=True)
 
@@ -1114,6 +1075,25 @@ def save_status_message():
 @bot.event
 async def on_ready():
     print(f'Bot connecté en tant que {bot.user.name}')
+    # Restaurer le statut du bot après redéploiement
+    try:
+        status_file = os.path.join(DATA_DIR, "bot_status.json")
+        if os.path.exists(status_file):
+            with open(status_file, "r") as f:
+                status_data = json.load(f)
+            status = status_data.get("status", "online")
+            message = status_data.get("message", "Développer le Serveur")
+            if status == "online":
+                await bot.change_presence(activity=discord.Game(name=message), status=discord.Status.online)
+            elif status == "streaming":
+                streaming_activity = discord.Streaming(name=message, url="https://www.twitch.tv/discord")
+                await bot.change_presence(activity=streaming_activity, status=discord.Status.online)
+            elif status == "offline":
+                await bot.change_presence(activity=None, status=discord.Status.invisible)
+            elif status == "dnd":
+                await bot.change_presence(activity=discord.Game(name="Modification(s) en cours"), status=discord.Status.dnd)
+    except Exception as e:
+        print(f"Erreur lors de la restauration du statut du bot: {e}")
     await restore_mutes_on_start()
 
 # Fonction utilitaire pour convertir les majuscules en caractères spéciaux
