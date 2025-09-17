@@ -3114,11 +3114,11 @@ async def classement_lvl(interaction: discord.Interaction):
                 desc += f"> {medal} : {member.mention} - Niveau {data['level']}\n"
         desc += "⠀"
         embed = discord.Embed(
-            title="Classement en Niveaux :",
+            title="🔝 | Classement en Niveaux",
             description=desc,
             color=0x162e50
         )
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1393317478133661746/1417973447262212146/PAX_RUINAE_1.gif?ex=68cc6e2e&is=68cb1cae&hm=b45ace5a93d808769486a9d2a68aeb149f602a6ec5cfc0f2f36c2a18b4e755c7&")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417982063839154318/PAX_RUINAE_4.gif?ex=68cc7634&is=68cb24b4&hm=5c7411791192069f1030b0aef0e51be790bb957c288658954070e2cc2f1d862c&")
         return embed
 
     class ClassementView(discord.ui.View):
