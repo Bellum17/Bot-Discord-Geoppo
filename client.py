@@ -174,7 +174,12 @@ levels = load_levels()
 lvl_log_channel_data = load_lvl_log_channel()
 
 def xp_for_level(level):
-    return level * 100
+    if level == 1:
+        return 10
+    elif level == 2:
+        return 20
+    else:
+        return 2 * xp_for_level(level - 1)
 
 def get_progress_bar(xp, level):
     total = xp_for_level(level)
