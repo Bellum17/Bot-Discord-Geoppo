@@ -296,14 +296,17 @@ async def purge(interaction: discord.Interaction, nombre: int):
 async def on_ready():
     print(f'Bot connecté en tant que {bot.user.name}')
     GUILD_ID = 1393301496283795640
-    guild = discord.Object(id=GUILD_ID)
+    guild = bot.get_guild(GUILD_ID)
     try:
-        cmds = await bot.tree.sync(guild=guild)
+        cmds = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Commandes synchronisées sur le serveur {GUILD_ID} ({len(cmds)}) : {[c.name for c in cmds]}")
     except Exception as e:
         print(f"Erreur lors de la synchronisation des commandes : {e}")
     await restore_mutes_on_start()
     await verify_economy_data(bot)
+    # Met à jour ou crée les salons vocaux de stats
+    if guild:
+        await update_stats_voice_channels(guild)
 
 # Variables globales pour les données
 balances = {}
@@ -918,49 +921,6 @@ async def on_message(message):
                 embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417983114390536363/PAX_RUINAE_5.gif?ex=68cc772f&is=68cb25af&hm=f095b505d44febce0e7a8cbf52fea9ac14c79aacaa17762ec66cb4d22ccc6b4d&")
                 await channel.send(embed=embed)
 # Commande pour ajouter de l'XP à un membre
-@bot.tree.command(name="add_xp", description="Ajoute de l'XP à un membre")
-@app_commands.checks.has_permissions(administrator=True)
-async def add_xp(interaction: discord.Interaction, membre: discord.Member, xp: int):
-    user_id = str(membre.id)
-    guild_id = str(interaction.guild.id)
-    if user_id not in levels:
-        levels[user_id] = {"xp": 0, "level": 1}
-    levels[user_id]["xp"] += xp
-    palier_roles = {
-        10: 1417893183903502468,
-        20: 1417893555376230570,
-        30: 1417893729066291391,
-        40: 1417893878136176680,
-        50: 1417894464122261555,
-        60: 1417894846844244139,
-        70: 1417895041862733986,
-        80: 1417895157553958922,
-        90: 1417895282443812884,
-        100: 1417895415273099404
-    }
-    while levels[user_id]["level"] < 100:
-        next_level_xp = xp_for_level(levels[user_id]["level"])
-        if levels[user_id]["xp"] >= next_level_xp:
-            levels[user_id]["level"] += 1
-            levels[user_id]["xp"] -= next_level_xp
-            palier = (levels[user_id]["level"] // 10) * 10
-            if palier in palier_roles:
-                new_role = interaction.guild.get_role(palier_roles[palier])
-                if new_role:
-                    await membre.add_roles(new_role)
-                    old_palier = palier - 10
-                    if old_palier in palier_roles:
-                        old_role = interaction.guild.get_role(palier_roles[old_palier])
-                        if old_role:
-                            await membre.remove_roles(old_role)
-                    lvl_channel_id = lvl_log_channel_data.get(guild_id)
-                    if lvl_channel_id:
-                        channel = interaction.guild.get_channel(int(lvl_channel_id))
-                        if channel:
-                            await channel.send(f"🏅 {membre.mention} a obtenu le rôle <@&{palier_roles[palier]}> en atteignant le niveau {levels[user_id]['level']} !")
-    save_levels(levels)
-    save_all_json_to_postgres()
-    await interaction.response.send_message(f"{xp} XP ajoutés à {membre.mention}. Niveau actuel : {levels[user_id]['level']}", ephemeral=True)
 
 # ===== COMMANDES DE BASE =====
 
@@ -3269,41 +3229,42 @@ async def remboursement(
     await interaction.followup.send(f"Remboursement effectué. {'Emprunt terminé !' if paiement_final else ''}", ephemeral=True)
 
     # === Mise à jour des salons vocaux de stats ===
-    async def update_stats_voice_channels(guild):
-        category_id = 1418006771053887571
-        membres_role_id = 1393340583665209514
-        joueurs_role_id = 1410289640170328244
-        noms_salons = {
-            "membres": f"╭【👥】・𝗠embres : ",
-            "joueurs": f"╰【✅】・𝗝oueurs : "
-        }
-        category = guild.get_channel(category_id)
-        if not category or not isinstance(category, discord.CategoryChannel):
-            return
-        membres_role = guild.get_role(membres_role_id)
-        joueurs_role = guild.get_role(joueurs_role_id)
-        membres_count = len(membres_role.members) if membres_role else 0
-        joueurs_count = len(joueurs_role.members) if joueurs_role else 0
-        # Cherche les salons existants
-        membres_channel = None
-        joueurs_channel = None
-        for channel in category.voice_channels:
-            if channel.name.startswith(noms_salons["membres"]):
-                membres_channel = channel
-            if channel.name.startswith(noms_salons["joueurs"]):
-                joueurs_channel = channel
-        # Met à jour ou crée le salon Membres
-        membres_name = f"{noms_salons['membres']}{membres_count}"
-        if membres_channel:
-            await membres_channel.edit(name=membres_name)
-        else:
-            await guild.create_voice_channel(name=membres_name, category=category)
-        # Met à jour ou crée le salon Joueurs
-        joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
-        if joueurs_channel:
-            await joueurs_channel.edit(name=joueurs_name)
-        else:
-            await guild.create_voice_channel(name=joueurs_name, category=category)
+
+async def update_stats_voice_channels(guild):
+    category_id = 1418006771053887571
+    membres_role_id = 1393340583665209514
+    joueurs_role_id = 1410289640170328244
+    noms_salons = {
+        "membres": f"╭【👥】・𝗠embres : ",
+        "joueurs": f"╰【✅】・𝗝oueurs : "
+    }
+    category = guild.get_channel(category_id)
+    if not category or not isinstance(category, discord.CategoryChannel):
+        return
+    membres_role = guild.get_role(membres_role_id)
+    joueurs_role = guild.get_role(joueurs_role_id)
+    membres_count = len(membres_role.members) if membres_role else 0
+    joueurs_count = len(joueurs_role.members) if joueurs_role else 0
+    # Cherche les salons existants
+    membres_channel = None
+    joueurs_channel = None
+    for channel in category.voice_channels:
+        if channel.name.startswith(noms_salons["membres"]):
+            membres_channel = channel
+        if channel.name.startswith(noms_salons["joueurs"]):
+            joueurs_channel = channel
+    # Met à jour ou crée le salon Membres
+    membres_name = f"{noms_salons['membres']}{membres_count}"
+    if membres_channel:
+        await membres_channel.edit(name=membres_name)
+    else:
+        await guild.create_voice_channel(name=membres_name, category=category)
+    # Met à jour ou crée le salon Joueurs
+    joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
+    if joueurs_channel:
+        await joueurs_channel.edit(name=joueurs_name)
+    else:
+        await guild.create_voice_channel(name=joueurs_name, category=category)
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
