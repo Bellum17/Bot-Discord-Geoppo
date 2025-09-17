@@ -845,6 +845,11 @@ async def on_message(message):
     xp = levels[user_id]["xp"]
     level = levels[user_id]["level"]
     next_level_xp = xp_for_level(level)
+    save_levels(levels)
+    try:
+        save_all_json_to_postgres()
+    except Exception as e:
+        print(f"[ERROR] Sauvegarde PostgreSQL après message : {e}")
     if xp >= next_level_xp:
         levels[user_id]["level"] += 1
         levels[user_id]["xp"] = xp - next_level_xp
