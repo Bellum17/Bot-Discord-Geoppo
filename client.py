@@ -934,7 +934,6 @@ async def add_xp(interaction: discord.Interaction, membre: discord.Member, xp: i
     save_levels(levels)
     save_all_json_to_postgres()
     await interaction.response.send_message(f"{xp} XP ajoutés à {membre.mention}. Niveau actuel : {levels[user_id]['level']}", ephemeral=True)
-    await bot.process_commands(interaction)
 
 # ===== COMMANDES DE BASE =====
 
