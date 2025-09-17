@@ -268,6 +268,20 @@ class MyBot(commands.Bot):
 # Création de l'instance du bot
 bot = MyBot()
 
+# === COMMANDE DE SUPPRESSION DE MESSAGES ===
+@bot.tree.command(name="purge", description="Supprime un nombre de messages dans ce salon (max 1000)")
+@app_commands.checks.has_permissions(manage_messages=True)
+async def purge(interaction: discord.Interaction, nombre: int):
+    if nombre < 1 or nombre > 1000:
+        await interaction.response.send_message("Le nombre doit être entre 1 et 1000.", ephemeral=True)
+        return
+    channel = interaction.channel
+    try:
+        deleted = await channel.purge(limit=nombre)
+        await interaction.response.send_message(f"{len(deleted)} messages supprimés.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"Erreur lors de la suppression : {e}", ephemeral=True)
+
 # Synchronisation forcée des commandes slash sur le serveur de test à chaque démarrage
 @bot.event
 async def on_ready():
