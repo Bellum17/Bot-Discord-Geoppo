@@ -3287,7 +3287,7 @@ async def on_member_update(before, after):
     membres_role_id = 1393340583665209514
     joueurs_role_id = 1410289640170328244
     membres_channel_id = 1418018437485166741
-    joueurs_channel_id = 1418018437485166741
+    joueurs_channel_id = 1418018438990925864
     noms_salons = {
         "membres": f"╭【👥】・𝗠embres : ",
         "joueurs": f"╰【✅】・𝗝oueurs : "
@@ -3297,7 +3297,7 @@ async def on_member_update(before, after):
     membres_count = len(membres_role.members) if membres_role else 0
     joueurs_count = len(joueurs_role.members) if joueurs_role else 0
     membres_channel = guild.get_channel(membres_channel_id)
-    joueurs_channel = guild.get_channel(joueurs_channel_id)
+    joueurs_channel = guild.get_channel(joueurs_channel_id) if joueurs_channel_id else None
     membres_name = f"{noms_salons['membres']}{membres_count}"
     joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
     if membres_channel:
@@ -3309,7 +3309,7 @@ async def on_member_update(before, after):
         print(f"[DEBUG] Mise à jour du nom du salon Joueurs: {joueurs_channel.name} -> {joueurs_name}")
         await joueurs_channel.edit(name=joueurs_name)
     else:
-        print(f"[DEBUG] Salon Joueurs non trouvé (ID: {joueurs_channel_id})")
+        print(f"[DEBUG] Salon Joueurs non modifié (aucun ID fourni)")
 
 @bot.tree.command(name="creer_stats_voice_channels", description="Crée les salons vocaux de stats dans la catégorie stats (temporaire)")
 @app_commands.checks.has_permissions(administrator=True)
