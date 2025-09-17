@@ -930,7 +930,6 @@ async def add_xp(interaction: discord.Interaction, membre: discord.Member, xp: i
                         channel = interaction.guild.get_channel(int(lvl_channel_id))
                         if channel:
                             await channel.send(f"🏅 {membre.mention} a obtenu le rôle <@&{palier_roles[palier]}> en atteignant le niveau {levels[user_id]['level']} !")
-    # ...existing code...
     save_levels(levels)
     save_all_json_to_postgres()
     await interaction.response.send_message(f"{xp} XP ajoutés à {membre.mention}. Niveau actuel : {levels[user_id]['level']}", ephemeral=True)
@@ -1473,11 +1472,10 @@ async def creer_pays(
         # Log de l'action
         log_embed = discord.Embed(
             title=f"🏛️ | Création de pays",
-            description=f"> **Administrateur :** {interaction.user.mention}\n> **Pays créé :** {role.mention}{INVISIBLE_CHAR}",
+            description=f"> **Administrateur :** {interaction.user.mention}\n> **Pays créé : ** {role.mention}\n> **Modifications : ** {', '.join(modifications)}{INVISIBLE_CHAR}",
             color=EMBED_COLOR,
             timestamp=datetime.datetime.now()
         )
-        log_embed.set_image(url=image if image and is_valid_image_url(image) else IMAGE_URL)
         await send_log(interaction.guild, embed=log_embed)
 
         # Log détaillé dans le canal de log des pays
@@ -1655,7 +1653,7 @@ async def creer_pays(
             await interaction.followup.send(f"> Pays créé, mais erreur lors de l'envoi du message : {e}", ephemeral=True)
 
     except Exception as e:
-        await interaction.followup.send(f"> Erreur lors de la création du rôle ou du salon principal : {e}", ephemeral=True)
+        await interaction.followup.send(f"> Erreur lors de la création du pays : {e}", ephemeral=True)
         print(f"[ERROR] Exception dans creer_pays : {e}")
         return
 
@@ -2547,12 +2545,21 @@ def get_mute_role(guild):
 @bot.tree.command(name="creer_role_mute", description="Crée le rôle mute et configure les permissions sur tous les salons")
 @app_commands.checks.has_permissions(administrator=True)
 async def creer_role_mute(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.send_message("Création du rôle mute en cours...", ephemeral=True)
     guild = interaction.guild
 
+    # Vérifier si le rôle mute existe déjà
     mute_role = get_mute_role(guild)
-    if not mute_role:
-        mute_role = await guild.create_role(name="Mute", reason="Création du rôle mute")
+    if mute_role:
+        await interaction.followup.send(f"> Le rôle mute existe déjà : {mute_role.mention}", ephemeral=True)
+        return
+
+    # Créer le rôle mute
+    try:
+        mute_role = await guild.create_role(name="Mute", color=discord.Color.grey(), reason="Rôle pour mute")
+    except Exception as e:
+        await interaction.followup.send(f"> Erreur lors de la création du rôle mute : {e}", ephemeral=True)
+        return
 
     # Configurer les permissions sur toutes les catégories et salons
     for category in guild.categories:
@@ -2971,6 +2978,149 @@ async def lvl(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+
+@bot.tree.command(name="creer_emprunt", description="Crée un emprunt et attribue la somme au demandeur")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    somme="Montant à emprunter",
+    taux="Taux d'intérêt (%)",
+    duree="Durée de l'emprunt (jours)",
+    nombre_paiement="Nombre de paiements à effectuer (facultatif)",
+    role="Rôle à débiter (optionnel)"
+)
+async def creer_emprunt(
+    interaction: discord.Interaction,
+    somme: int,
+    taux: float,
+    duree: int,
+    nombre_paiement: int = None,
+    role: discord.Role = None
+):
+    await interaction.response.defer(ephemeral=True)
+    demandeur_id = str(interaction.user.id)
+    role_id = str(role.id) if role else None
+    banque_centrale_id = "BOT"
+    # Vérification des montants
+    if somme <= 0 or taux < 0 or duree <= 0:
+        await interaction.followup.send("> Paramètres invalides.", ephemeral=True)
+        return
+    # Débit du rôle ou Banque centrale
+    if role:
+        balances[role_id] = balances.get(role_id, 0) - somme
+        debiteur = role.mention
+    else:
+        debiteur = "Banque centrale"
+    # Crédit du demandeur
+    balances[demandeur_id] = balances.get(demandeur_id, 0) + somme
+    # Création de l'emprunt
+    emprunt = {
+        "id": f"{demandeur_id}-{int(time.time())}",
+        "demandeur_id": demandeur_id,
+        "role_id": role_id,
+        "somme": somme,
+        "taux": taux,
+        "duree": duree,
+        "nombre_paiement": nombre_paiement,
+        "restant": somme,
+        "date_debut": int(time.time()),
+        "remboursements": []
+    }
+    loans.append(emprunt)
+    save_loans(loans)
+    save_balances(balances)
+    # Log de la transaction
+    log_transaction(
+        from_id=role_id if role else banque_centrale_id,
+        to_id=demandeur_id,
+        amount=somme,
+        transaction_type="emprunt",
+        guild_id=str(interaction.guild.id)
+    )
+    save_all_json_to_postgres()
+    # Log embed
+    embed = discord.Embed(
+        title="💸 | Création d'emprunt",
+        description=(
+            f"> **Demandeur :** {interaction.user.mention}\n"
+            f"> **Montant :** {somme}\n"
+            f"> **Taux :** {taux}%\n"
+            f"> **Durée :** {duree} jours\n"
+            f"> **Nombre de paiements :** {nombre_paiement if nombre_paiement else 'Non défini'}\n"
+            f"> **Débiteur :** {debiteur}{INVISIBLE_CHAR}"
+        ),
+        color=EMBED_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    await send_log(interaction.guild, embed=embed)
+    await interaction.followup.send(f"Emprunt créé et {somme} crédités à {interaction.user.mention}.", ephemeral=True)
+
+# Commande /remboursement : sélectionne un emprunt et effectue un paiement
+@bot.tree.command(name="remboursement", description="Rembourse un emprunt en cours")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    emprunt_id="ID de l'emprunt à rembourser",
+    montant="Montant à rembourser"
+)
+async def remboursement(
+    interaction: discord.Interaction,
+    emprunt_id: str,
+    montant: int
+):
+    await interaction.response.defer(ephemeral=True)
+    user_id = str(interaction.user.id)
+    # Recherche de l'emprunt
+    emprunt = next((e for e in loans if e["id"] == emprunt_id and e["demandeur_id"] == user_id), None)
+    if not emprunt:
+        await interaction.followup.send("> Emprunt non trouvé ou non autorisé.", ephemeral=True)
+        return
+    if montant <= 0 or montant > emprunt["restant"]:
+        await interaction.followup.send("> Montant invalide.", ephemeral=True)
+        return
+    # Calcul des intérêts si dernier paiement
+    reste_apres = emprunt["restant"] - montant
+    paiement_final = reste_apres == 0
+    interet = 0
+    if paiement_final:
+        interet = int(emprunt["somme"] * emprunt["taux"] / 100)
+    total_rembourse = montant + interet
+    # Débit du demandeur
+    balances[user_id] = balances.get(user_id, 0) - total_rembourse
+    # Crédit du rôle ou Banque centrale
+    role_id = emprunt["role_id"] if emprunt["role_id"] else "BOT"
+    balances[role_id] = balances.get(role_id, 0) + total_rembourse
+    # Mise à jour de l'emprunt
+    emprunt["restant"] = reste_apres
+    emprunt["remboursements"].append({
+        "montant": montant,
+        "interet": interet,
+        "date": int(time.time())
+    })
+    save_loans(loans)
+    save_balances(balances)
+    # Log de la transaction
+    log_transaction(
+        from_id=user_id,
+        to_id=role_id,
+        amount=total_rembourse,
+        transaction_type="remboursement",
+        guild_id=str(interaction.guild.id)
+    )
+    save_all_json_to_postgres()
+    # Log embed
+    embed = discord.Embed(
+        title="💸 | Remboursement d'emprunt",
+        description=(
+            f"> **Emprunteur :** {interaction.user.mention}\n"
+            f"> **Montant remboursé :** {montant}\n"
+            f"> **Intérêt payé :** {interet}\n"
+            f"> **Emprunt restant :** {reste_apres}\n"
+            f"> **Crédité à :** {role_id if emprunt["role_id"] else 'Banque centrale'}{INVISIBLE_CHAR}"
+        ),
+        color=EMBED_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    await send_log(interaction.guild, embed=embed)
+    await interaction.followup.send(f"Remboursement effectué. {'Emprunt terminé !' if paiement_final else ''}", ephemeral=True)
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
