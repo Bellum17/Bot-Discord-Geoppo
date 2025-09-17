@@ -795,7 +795,7 @@ xp_system_active = False
 
 @bot.event
 async def on_message(message):
-    global xp_system_active
+    global xp_system_active, levels
     if message.author.bot or not message.guild:
         return
     if not xp_system_active:
