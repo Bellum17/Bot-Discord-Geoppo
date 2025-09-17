@@ -245,6 +245,10 @@ class MyBot(commands.Bot):
             print(f"Erreur lors de la synchronisation des commandes slash : {e}")
         await verify_economy_data(self)
 
+
+# Instanciation du bot (doit être avant toute utilisation de @bot.event)
+bot = MyBot()
+
 # Variables globales pour les données
 balances = {}
 log_channel_data = {}
