@@ -177,6 +177,8 @@ lvl_log_channel_data = load_lvl_log_channel()
 def xp_for_level(level):
     if level > 100:
         return None
+    if level is None or level < 1:
+        return 0
     if level == 1:
         return 10
     elif level == 2:
@@ -910,7 +912,7 @@ async def add_xp(interaction: discord.Interaction, membre: discord.Member, xp: i
         90: 1417895282443812884,
         100: 1417895415273099404
     }
-    while levels[user_id]["level"] < 100:
+    while levels[user_id]["level"] < 100 and levels[user_id]["level"] >= 1:
         next_level_xp = xp_for_level(levels[user_id]["level"])
         if levels[user_id]["xp"] >= next_level_xp:
             levels[user_id]["level"] += 1
