@@ -849,7 +849,10 @@ async def on_message(message):
         levels[user_id]["level"] += 1
         levels[user_id]["xp"] = xp - next_level_xp
         save_levels(levels)
-        save_all_json_to_postgres()
+        try:
+            save_all_json_to_postgres()
+        except Exception as e:
+            print(f"[ERROR] Sauvegarde PostgreSQL après message : {e}")
         # Gestion des rôles de palier
         palier_roles = {
             10: 1417893183903502468,
@@ -1396,8 +1399,6 @@ async def creer_pays(
                 role_religion = interaction.guild.get_role(int(religion))
                 if role_religion and role_religion not in dirigeant.roles:
                     await dirigeant.add_roles(role_religion)
-        except Exception as e:
-            print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
         except Exception as e:
             print(f"[ERROR] Ajout des rôles au dirigeant : {e}")
 
@@ -2140,12 +2141,10 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                         """, ("transactions.json", content))
                     conn.commit()
                 print("[DEBUG] Données économiques supprimées de PostgreSQL.")
+        except Exception as e:
+            print(f"[DEBUG] Erreur lors de la suppression des données économiques dans PostgreSQL : {e}")
     except Exception as e:
-                print(f"[DEBUG] Erreur lors de la suppression des données économiques dans PostgreSQL : {e}")
-    except Exception as err:
-            print(f"[ERROR] Suppression transactions pays dans PostgreSQL : {err}")
-    except Exception as err:
-        print(f"[ERROR] Suppression transactions pays dans JSON : {err}")
+        print(f"[ERROR] Suppression des transactions liées au pays : {e}")
     await interaction.response.defer(ephemeral=True)
     try:
         # Liste des rôles à retirer aux membres du pays
