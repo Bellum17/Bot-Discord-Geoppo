@@ -1357,11 +1357,14 @@ async def creer_pays(
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             role: discord.PermissionOverwrite(
-                read_messages=True, send_messages=True, read_message_history=True,
-                embed_links=True, attach_files=True, add_reactions=True
-        import asyncio
-        max_iterations = 100
-        iterations = 0
+                read_messages=True,
+                send_messages=True,
+                read_message_history=True,
+                embed_links=True,
+                attach_files=True,
+                add_reactions=True
+            )
+        }
         print(f"[DEBUG] Création du salon principal : {channel_name}")
         channel = await interaction.guild.create_text_channel(
             name=channel_name,
@@ -1392,18 +1395,15 @@ async def creer_pays(
 
         # Ajout du rôle joueur et retrait du rôle non-joueur
         await asyncio.sleep(0)
-        if iterations > max_iterations:
-            print("[DEBUG] Limite d'itérations atteinte, sortie de la boucle pour éviter un blocage.")
-            break
-            role_non_joueur_id = 1393344053608710315
-            role_joueur = interaction.guild.get_role(role_joueur_id)
-            role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
-            if role_joueur:
-                await dirigeant.add_roles(role_joueur)
-            if role_non_joueur and role_non_joueur in dirigeant.roles:
-                await dirigeant.remove_roles(role_non_joueur)
-        except Exception as e:
-            print(f"[ERROR] Ajout/retrait rôle joueur/non-joueur : {e}")
+        # Ajout du rôle joueur et retrait du rôle non-joueur
+        role_joueur_id = 1410289640170328244
+        role_non_joueur_id = 1393344053608710315
+        role_joueur = interaction.guild.get_role(role_joueur_id)
+        role_non_joueur = interaction.guild.get_role(role_non_joueur_id)
+        if role_joueur:
+            await dirigeant.add_roles(role_joueur)
+        if role_non_joueur and role_non_joueur in dirigeant.roles:
+            await dirigeant.remove_roles(role_non_joueur)
 
         # Ajout des rôles automatiques
         try:
