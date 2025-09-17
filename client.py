@@ -889,6 +889,7 @@ async def on_message(message):
                 if lvl_channel_id:
                     channel = message.guild.get_channel(int(lvl_channel_id))
                     if channel:
+                        await channel.send(f"> − {member.mention}")
                         embed = discord.Embed(
                             description=(
                                 "⠀\n"
@@ -898,13 +899,14 @@ async def on_message(message):
                             ),
                             color=0x162e50
                         )
-                        embed.set_image(url="https://cdn.discordapp.com/attachments/1393317478133661746/1417973447262212146/PAX_RUINAE_1.gif?ex=68cc6e2e&is=68cb1cae&hm=b45ace5a93d808769486a9d2a68aeb149f602a6ec5cfc0f2f36c2a18b4e755c7&")
+                        embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417983114390536363/PAX_RUINAE_5.gif?ex=68cc772f&is=68cb25af&hm=f095b505d44febce0e7a8cbf52fea9ac14c79aacaa17762ec66cb4d22ccc6b4d&")
                         await channel.send(embed=embed)
         # Log passage de niveau (embed stylisé)
         lvl_channel_id = lvl_log_channel_data.get(guild_id)
         if lvl_channel_id:
             channel = message.guild.get_channel(int(lvl_channel_id))
             if channel:
+                await channel.send(f"> − {message.author.mention}")
                 embed = discord.Embed(
                     description=(
                         "⠀\n"
@@ -913,7 +915,7 @@ async def on_message(message):
                     ),
                     color=0x162e50
                 )
-                embed.set_image(url="https://cdn.discordapp.com/attachments/1393317478133661746/1417973447262212146/PAX_RUINAE_1.gif?ex=68cc6e2e&is=68cb1cae&hm=b45ace5a93d808769486a9d2a68aeb149f602a6ec5cfc0f2f36c2a18b4e755c7&")
+                embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417983114390536363/PAX_RUINAE_5.gif?ex=68cc772f&is=68cb25af&hm=f095b505d44febce0e7a8cbf52fea9ac14c79aacaa17762ec66cb4d22ccc6b4d&")
                 await channel.send(embed=embed)
 # Commande pour ajouter de l'XP à un membre
 @bot.tree.command(name="add_xp", description="Ajoute de l'XP à un membre")
@@ -3062,11 +3064,11 @@ async def classement_lvl(interaction: discord.Interaction):
                 desc += f"> {medal} : {member.mention} - Niveau {data['level']}\n"
         desc += "⠀"
         embed = discord.Embed(
-            title="Classement en Niveaux :",
+            title="🔝 | Classement en Niveaux",
             description=desc,
             color=0x162e50
         )
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1393317478133661746/1417973447262212146/PAX_RUINAE_1.gif?ex=68cc6e2e&is=68cb1cae&hm=b45ace5a93d808769486a9d2a68aeb149f602a6ec5cfc0f2f36c2a18b4e755c7&")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417982063839154318/PAX_RUINAE_4.gif?ex=68cc7634&is=68cb24b4&hm=5c7411791192069f1030b0aef0e51be790bb957c288658954070e2cc2f1d862c&")
         return embed
 
     class ClassementView(discord.ui.View):
