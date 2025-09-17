@@ -947,7 +947,11 @@ def save_status_message():
 @bot.event
 async def on_ready():
     print(f'Bot connecté en tant que {bot.user.name}')
-    await restore_mutes_on_start()
+    # Appel sécurisé de restore_mutes_on_start si elle existe et est async
+    if 'restore_mutes_on_start' in globals() and callable(restore_mutes_on_start):
+        result = restore_mutes_on_start()
+        if hasattr(result, '__await__'):
+            await result
 
 # Fonction utilitaire pour convertir les majuscules en caractères spéciaux
 def is_valid_image_url(url):
