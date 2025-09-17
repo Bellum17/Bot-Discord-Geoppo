@@ -40,6 +40,7 @@ def save_all_json_to_postgres():
         ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
         ("levels.json", os.path.join(DATA_DIR, "levels.json")),
         ("xp_system_status.json", os.path.join(DATA_DIR, "xp_system_status.json")),
+        ("lvl_log_channel.json", os.path.join(DATA_DIR, "lvl_log_channel.json")),
     ]
     try:
         print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
@@ -174,6 +175,8 @@ levels = load_levels()
 lvl_log_channel_data = load_lvl_log_channel()
 
 def xp_for_level(level):
+    if level > 100:
+        return None
     if level == 1:
         return 10
     elif level == 2:
