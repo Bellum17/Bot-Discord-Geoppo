@@ -930,15 +930,11 @@ async def add_xp(interaction: discord.Interaction, membre: discord.Member, xp: i
                         channel = interaction.guild.get_channel(int(lvl_channel_id))
                         if channel:
                             await channel.send(f"🏅 {membre.mention} a obtenu le rôle <@&{palier_roles[palier]}> en atteignant le niveau {levels[user_id]['level']} !")
-        else:
-            break
+    # ...existing code...
     save_levels(levels)
     save_all_json_to_postgres()
     await interaction.response.send_message(f"{xp} XP ajoutés à {membre.mention}. Niveau actuel : {levels[user_id]['level']}", ephemeral=True)
-    else:
-        save_levels(levels)
-        save_all_json_to_postgres()
-    await bot.process_commands(message)
+    await bot.process_commands(interaction)
 
 # ===== COMMANDES DE BASE =====
 
