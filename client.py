@@ -3038,6 +3038,143 @@ async def lvl(interaction: discord.Interaction):
     embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     await interaction.response.send_message(embed=embed)
 
+@bot.tree.command(name="classement_lvl", description="Affiche le classement des membres par niveau")
+async def classement_lvl(interaction: discord.Interaction):
+    # Récupérer les 15 meilleurs niveaux
+    classement = sorted(levels.items(), key=lambda x: x[1]["level"], reverse=True)
+    per_page = 15
+    pages = [classement[i:i+per_page] for i in range(0, len(classement), per_page)]
+    def make_embed(page_idx):
+        page = pages[page_idx]
+        desc = "⠀\n"
+        for idx, (user_id, data) in enumerate(page):
+            rank = idx + 1 + page_idx * per_page
+            if rank == 1:
+                medal = "🥇"
+            elif rank == 2:
+                medal = "🥈"
+            elif rank == 3:
+                medal = "🥉"
+            else:
+                medal = f"{rank}."
+            member = interaction.guild.get_member(int(user_id))
+            if member:
+                desc += f"> {medal} : {member.mention} - Niveau {data['level']}\n"
+        desc += "⠀"
+        embed = discord.Embed(
+            title="Classement en Niveaux :",
+            description=desc,
+            color=0x162e50
+        )
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1393317478133661746/1417973447262212146/PAX_RUINAE_1.gif?ex=68cc6e2e&is=68cb1cae&hm=b45ace5a93d808769486a9d2a68aeb149f602a6ec5cfc0f2f36c2a18b4e755c7&")
+        return embed
+
+    class ClassementView(discord.ui.View):
+        def __init__(self, pages):
+            super().__init__(timeout=60)
+            self.pages = pages
+            self.page_idx = 0
+            self.message = None
+
+        @discord.ui.button(emoji="⬅️", style=discord.ButtonStyle.secondary)
+        async def prev(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
+            if self.page_idx > 0:
+                self.page_idx -= 1
+                await interaction_btn.response.edit_message(embed=make_embed(self.page_idx), view=self)
+
+        @discord.ui.button(emoji="➡️", style=discord.ButtonStyle.secondary)
+        async def next(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
+            if self.page_idx < len(self.pages) - 1:
+                self.page_idx += 1
+                await interaction_btn.response.edit_message(embed=make_embed(self.page_idx), view=self)
+
+    view = ClassementView(pages)
+    await interaction.response.send_message(embed=make_embed(0), view=view)
+    # Récupérer les 15 meilleurs niveaux
+    classement = sorted(levels.items(), key=lambda x: x[1]["level"], reverse=True)
+    per_page = 15
+    pages = [classement[i:i+per_page] for i in range(0, len(classement), per_page)]
+    def make_embed(page_idx):
+        page = pages[page_idx]
+        desc = "⠀\n"
+        for idx, (user_id, data) in enumerate(page):
+            rank = idx + 1 + page_idx * per_page
+            if rank == 1:
+                medal = "🥇"
+            elif rank == 2:
+                medal = "🥈"
+            elif rank == 3:
+                medal = "🥉"
+            else:
+                medal = f"{rank}."
+            member = interaction.guild.get_member(int(user_id))
+            if member:
+                desc += f"> {medal} : {member.mention} - Niveau {data['level']}\n"
+        desc += "⠀"
+        embed = discord.Embed(
+            title="Classement en Niveaux :",
+            description=desc,
+            color=0x162e50
+        )
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1393317478133661746/1417973447262212146/PAX_RUINAE_1.gif?ex=68cc6e2e&is=68cb1cae&hm=b45ace5a93d808769486a9d2a68aeb149f602a6ec5cfc0f2f36c2a18b4e755c7&")
+        return embed
+
+    class ClassementView(discord.ui.View):
+        def __init__(self, pages):
+            super().__init__(timeout=60)
+            self.pages = pages
+            self.page_idx = 0
+            self.message = None
+
+        @discord.ui.button(emoji="⬅️", style=discord.ButtonStyle.secondary)
+        async def prev(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
+            if self.page_idx > 0:
+                self.page_idx -= 1
+                await interaction_btn.response.edit_message(embed=make_embed(self.page_idx), view=self)
+
+        @discord.ui.button(emoji="➡️", style=discord.ButtonStyle.secondary)
+        async def next(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
+            if self.page_idx < len(self.pages) - 1:
+                self.page_idx += 1
+                await interaction_btn.response.edit_message(embed=make_embed(self.page_idx), view=self)
+
+    view = ClassementView(pages)
+    await interaction.response.send_message(embed=make_embed(0), view=view)
+    user_id = str(interaction.user.id)
+    if user_id not in levels:
+        levels[user_id] = {"xp": 0, "level": 1}
+        save_levels(levels)
+    xp = levels[user_id]["xp"]
+    level = levels[user_id]["level"]
+    bar = get_progress_bar(xp, level)
+    percent = int((xp / xp_for_level(level)) * 100) if xp_for_level(level) > 0 else 0
+    # Détection du grade de palier
+    palier_roles = {
+        10: 1417893183903502468,
+        20: 1417893555376230570,
+        30: 1417893729066291391,
+        40: 1417893878136176680,
+        50: 1417894464122261555,
+        60: 1417894846844244139,
+        70: 1417895041862733986,
+        80: 1417895157553958922,
+        90: 1417895282443812884,
+        100: 1417895415273099404
+    }
+    palier = (level // 10) * 10
+    grade = None
+    if palier in palier_roles:
+        role_obj = interaction.guild.get_role(palier_roles[palier])
+        if role_obj and role_obj in interaction.user.roles:
+            grade = role_obj.name
+    embed = discord.Embed(
+        title=f"Niveau de {interaction.user.display_name}",
+        description=f"⠀\n> − **Niveau :** {level}\n> − **Progression :**\n> {bar}\n" + (f"> − **Grade : {grade}**\n⠀" if grade else "⠀"),
+        color=0xebe3bd
+    )
+    embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
+    await interaction.response.send_message(embed=embed)
+
 
 @bot.tree.command(name="creer_emprunt", description="Crée un emprunt et attribue la somme au demandeur")
 @app_commands.checks.has_permissions(administrator=True)
