@@ -3010,11 +3010,32 @@ async def lvl(interaction: discord.Interaction):
     xp = levels[user_id]["xp"]
     level = levels[user_id]["level"]
     bar = get_progress_bar(xp, level)
+    percent = int((xp / xp_for_level(level)) * 100) if xp_for_level(level) > 0 else 0
+    # Détection du grade de palier
+    palier_roles = {
+        10: 1417893183903502468,
+        20: 1417893555376230570,
+        30: 1417893729066291391,
+        40: 1417893878136176680,
+        50: 1417894464122261555,
+        60: 1417894846844244139,
+        70: 1417895041862733986,
+        80: 1417895157553958922,
+        90: 1417895282443812884,
+        100: 1417895415273099404
+    }
+    palier = (level // 10) * 10
+    grade = None
+    if palier in palier_roles:
+        role_obj = interaction.guild.get_role(palier_roles[palier])
+        if role_obj and role_obj in interaction.user.roles:
+            grade = role_obj.name
     embed = discord.Embed(
         title=f"Niveau de {interaction.user.display_name}",
-        description=f"> **Niveau :** {level}\n> **XP :** {xp}/{xp_for_level(level)}\n{bar}",
-        color=EMBED_COLOR
+        description=f"⠀\n> − **Niveau :** {level}\n> − **Progression :**\n> {bar} | {percent}%\n" + (f"> − **Grade : {grade}**\n⠀" if grade else "⠀"),
+        color=0xebe3bd
     )
+    embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
