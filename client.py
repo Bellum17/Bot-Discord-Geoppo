@@ -3268,6 +3268,42 @@ async def update_stats_voice_channels(guild):
         await category.create_voice_channel(name=joueurs_name)
 
 # === Bloc principal déplacé à la toute fin du fichier ===
+
+@bot.tree.command(name="creer_stats_voice_channels", description="Crée les salons vocaux de stats dans la catégorie stats (temporaire)")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(categorie="Catégorie où créer les salons vocaux de stats")
+async def creer_stats_voice_channels(interaction: discord.Interaction, categorie: discord.CategoryChannel):
+    await interaction.response.defer(ephemeral=True)
+    membres_role_id = 1393340583665209514
+    joueurs_role_id = 1410289640170328244
+    noms_salons = {
+        "membres": f"╭【👥】・𝗠embres : ",
+        "joueurs": f"╰【✅】・𝗝oueurs : "
+    }
+    guild = interaction.guild
+    membres_role = guild.get_role(membres_role_id)
+    joueurs_role = guild.get_role(joueurs_role_id)
+    membres_count = len(membres_role.members) if membres_role else 0
+    joueurs_count = len(joueurs_role.members) if joueurs_role else 0
+    membres_name = f"{noms_salons['membres']}{membres_count}"
+    joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
+    # Crée les salons vocaux si non existants
+    membres_channel = None
+    joueurs_channel = None
+    for channel in categorie.voice_channels:
+        if channel.name.startswith(noms_salons['membres']):
+            membres_channel = channel
+        if channel.name.startswith(noms_salons['joueurs']):
+            joueurs_channel = channel
+    if not membres_channel:
+        membres_channel = await categorie.create_voice_channel(membres_name)
+    if not joueurs_channel:
+        joueurs_channel = await categorie.create_voice_channel(joueurs_name)
+    embed = discord.Embed(
+        description=f"Salons vocaux de stats créés :\n- {membres_channel.mention}\n- {joueurs_channel.mention}",
+        color=0xefe7c5
+    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
     restore_all_json_from_postgres()
