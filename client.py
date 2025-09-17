@@ -813,7 +813,7 @@ async def on_message(message):
         levels[user_id]["level"] += 1
         levels[user_id]["xp"] = xp - next_level_xp
         save_levels(levels)
-    save_all_json_to_postgres()
+        save_all_json_to_postgres()
         # Log passage de niveau
         lvl_channel_id = lvl_log_channel_data.get(guild_id)
         if lvl_channel_id:
@@ -823,7 +823,7 @@ async def on_message(message):
                 await channel.send(f"🎉 {message.author.mention} est passé niveau {levels[user_id]['level']} !\n{bar}")
     else:
         save_levels(levels)
-    save_all_json_to_postgres()
+        save_all_json_to_postgres()
     await bot.process_commands(message)
 
 # ===== COMMANDES DE BASE =====
