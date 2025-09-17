@@ -39,6 +39,7 @@ def save_all_json_to_postgres():
         ("loans.json", os.path.join(DATA_DIR, "loans.json")),
         ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
         ("levels.json", os.path.join(DATA_DIR, "levels.json")),
+        ("xp_system_status.json", os.path.join(DATA_DIR, "xp_system_status.json")),
     ]
     try:
         print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
@@ -65,6 +66,18 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import json
+xp_system_status_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "xp_system_status.json")
+def load_xp_system_status():
+    if os.path.exists(xp_system_status_path):
+        with open(xp_system_status_path, 'r') as f:
+            return json.load(f)
+    return {"servers": {}}
+
+def save_xp_system_status(status):
+    with open(xp_system_status_path, 'w') as f:
+        json.dump(status, f, indent=4)
+
+xp_system_status = load_xp_system_status()
 import time
 import datetime
 import asyncio
@@ -791,18 +804,18 @@ async def on_error(event, *args, **kwargs):
     print(f"Erreur dans l'événement {event}: {sys.exc_info()[0]}")
 
 # Ajout de l'événement on_message pour l'XP
-xp_system_active = False
+xp_system_active = False  # Obsolète, remplacé par xp_system_status
 
 @bot.event
 async def on_message(message):
-    global xp_system_active, levels
+    global levels, xp_system_status
     if message.author.bot or not message.guild:
         return
-    if not xp_system_active:
+    guild_id = str(message.guild.id)
+    if not xp_system_status["servers"].get(guild_id, False):
         await bot.process_commands(message)
         return
     user_id = str(message.author.id)
-    guild_id = str(message.guild.id)
     if user_id not in levels:
         levels[user_id] = {"xp": 0, "level": 1}
     levels[user_id]["xp"] += 1
@@ -2842,16 +2855,17 @@ async def mp(interaction: discord.Interaction):
 @bot.tree.command(name="set_lvl", description="Active le système de niveau (XP)")
 @app_commands.checks.has_permissions(administrator=True)
 async def set_lvl(interaction: discord.Interaction):
-    global levels
-    if levels:
+    global xp_system_status
+    guild_id = str(interaction.guild.id)
+    if xp_system_status["servers"].get(guild_id, False):
         await interaction.response.send_message(
             "Le système de niveau est déjà actif.", ephemeral=True)
         return
-    levels = {}
-    save_levels(levels)
-    save_all_json_to_postgres()
+    xp_system_status["servers"][guild_id] = True
+    save_xp_system_status(xp_system_status)
     await interaction.response.send_message(
         "Système de niveau activé !", ephemeral=True)
+    save_all_json_to_postgres()
 
 @bot.tree.command(name="set_channel_lvl", description="Définit le salon de log pour les passages de niveau")
 @app_commands.checks.has_permissions(administrator=True)
