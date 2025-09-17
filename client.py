@@ -38,6 +38,7 @@ def save_all_json_to_postgres():
         ("balances.json", os.path.join(DATA_DIR, "balances.json")),
         ("loans.json", os.path.join(DATA_DIR, "loans.json")),
         ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
+        ("levels.json", os.path.join(DATA_DIR, "levels.json")),
     ]
     try:
         print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
