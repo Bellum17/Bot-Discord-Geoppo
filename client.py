@@ -3073,7 +3073,7 @@ async def classement_lvl(interaction: discord.Interaction):
 
     class ClassementView(discord.ui.View):
         def __init__(self, pages):
-            super().__init__(timeout=60)
+            super().__init__(timeout=600)
             self.pages = pages
             self.page_idx = 0
             self.message = None
