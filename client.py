@@ -1,47 +1,49 @@
-
 """
 #!/usr/bin/env python3
 Bot Discord pour la gestion d'économie.
 Ce fichier peut être exécuté directement.
 """
 import os
+import psycopg2
+# === Restauration automatique des fichiers JSON depuis PostgreSQL ===
+def restore_all_json_from_postgres():
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    if not DATABASE_URL:
+        print("DATABASE_URL non défini, restauration PostgreSQL ignorée.")
+        return
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT filename, content FROM json_backups")
+                files = cur.fetchall()
+            for filename, content in files:
+                filepath = os.path.join(DATA_DIR, filename)
+                with open(filepath, "w") as f:
+                    f.write(content)
+                print(f"Restauration automatique : {filename}")
+    except Exception as e:
+        print(f"Erreur lors de la restauration automatique depuis PostgreSQL : {e}")
 
-# Tâche pour mettre à jour les salons vocaux de stats
-async def update_stats_channels():
-    await bot.wait_until_ready()
-    while True:
-        for guild in bot.guilds:
-            category_id = 1418006771053887571
-            membres_role_id = 1393340583665209514
-            joueurs_role_id = 1410289640170328244
-            category = guild.get_channel(category_id)
-            if not category or not isinstance(category, discord.CategoryChannel):
-                continue
-            membres_count = len([m for m in guild.members if membres_role_id in [r.id for r in m.roles]])
-            joueurs_count = len([m for m in guild.members if joueurs_role_id in [r.id for r in m.roles]])
-            # Noms cibles
-            membres_name = f"╭【👥】・𝗠embres : {membres_count}"
-            joueurs_name = f"╰【✅】・𝗝oueurs : {joueurs_count}"
-            # Chercher les salons vocaux
-            membres_channel = None
-            joueurs_channel = None
-            for ch in category.voice_channels:
-                if ch.name.startswith("╭【👥】・𝗠embres"):
-                    membres_channel = ch
-                if ch.name.startswith("╰【✅】・𝗝oueurs"):
-                    joueurs_channel = ch
-            # Créer si absent
-            if not membres_channel:
-                membres_channel = await guild.create_voice_channel(membres_name, category=category)
-            if not joueurs_channel:
-                joueurs_channel = await guild.create_voice_channel(joueurs_name, category=category)
-            # Renommer si besoin
-            if membres_channel.name != membres_name:
-                await membres_channel.edit(name=membres_name)
-            if joueurs_channel.name != joueurs_name:
-                await joueurs_channel.edit(name=joueurs_name)
-        await asyncio.sleep(60)
-
+def save_all_json_to_postgres():
+    """Sauvegarde balances, balances_backup, loans, transactions dans PostgreSQL."""
+    import psycopg2
+    import os
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    if not DATABASE_URL:
+        print("DATABASE_URL non défini, sauvegarde PostgreSQL ignorée.")
+        return
+    files = [
+        ("balances.json", os.path.join(DATA_DIR, "balances.json")),
+        ("loans.json", os.path.join(DATA_DIR, "loans.json")),
+        ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
+        ("levels.json", os.path.join(DATA_DIR, "levels.json")),
+        ("xp_system_status.json", os.path.join(DATA_DIR, "xp_system_status.json")),
+        ("lvl_log_channel.json", os.path.join(DATA_DIR, "lvl_log_channel.json")),
+    ]
+    try:
+        print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
                     for filename, filepath in files:
@@ -3266,43 +3268,45 @@ async def remboursement(
     await send_log(interaction.guild, embed=embed)
     await interaction.followup.send(f"Remboursement effectué. {'Emprunt terminé !' if paiement_final else ''}", ephemeral=True)
 
+    # === Mise à jour des salons vocaux de stats ===
+    async def update_stats_voice_channels(guild):
+        category_id = 1418006771053887571
+        membres_role_id = 1393340583665209514
+        joueurs_role_id = 1410289640170328244
+        noms_salons = {
+            "membres": f"╭【👥】・𝗠embres : ",
+            "joueurs": f"╰【✅】・𝗝oueurs : "
+        }
+        category = guild.get_channel(category_id)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            return
+        membres_role = guild.get_role(membres_role_id)
+        joueurs_role = guild.get_role(joueurs_role_id)
+        membres_count = len(membres_role.members) if membres_role else 0
+        joueurs_count = len(joueurs_role.members) if joueurs_role else 0
+        # Cherche les salons existants
+        membres_channel = None
+        joueurs_channel = None
+        for channel in category.voice_channels:
+            if channel.name.startswith(noms_salons["membres"]):
+                membres_channel = channel
+            if channel.name.startswith(noms_salons["joueurs"]):
+                joueurs_channel = channel
+        # Met à jour ou crée le salon Membres
+        membres_name = f"{noms_salons['membres']}{membres_count}"
+        if membres_channel:
+            await membres_channel.edit(name=membres_name)
+        else:
+            await guild.create_voice_channel(name=membres_name, category=category)
+        # Met à jour ou crée le salon Joueurs
+        joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
+        if joueurs_channel:
+            await joueurs_channel.edit(name=joueurs_name)
+        else:
+            await guild.create_voice_channel(name=joueurs_name, category=category)
+
 # === Bloc principal déplacé à la toute fin du fichier ===
 if __name__ == "__main__":
-    # Tâche pour mettre à jour les salons vocaux de stats
-    async def update_stats_channels():
-        await bot.wait_until_ready()
-        while True:
-            for guild in bot.guilds:
-                category_id = 1418006771053887571
-                membres_role_id = 1393340583665209514
-                joueurs_role_id = 1410289640170328244
-                category = guild.get_channel(category_id)
-                if not category or not isinstance(category, discord.CategoryChannel):
-                    continue
-                membres_count = len([m for m in guild.members if membres_role_id in [r.id for r in m.roles]])
-                joueurs_count = len([m for m in guild.members if joueurs_role_id in [r.id for r in m.roles]])
-                # Noms cibles
-                membres_name = f"╭【👥】・𝗠embres : {membres_count}"
-                joueurs_name = f"╰【✅】・𝗝oueurs : {joueurs_count}"
-                # Chercher les salons vocaux
-                membres_channel = None
-                joueurs_channel = None
-                for ch in category.voice_channels:
-                    if ch.name.startswith("╭【👥】・𝗠embres"):
-                        membres_channel = ch
-                    if ch.name.startswith("╰【✅】・𝗝oueurs"):
-                        joueurs_channel = ch
-                # Créer si absent
-                if not membres_channel:
-                    membres_channel = await guild.create_voice_channel(membres_name, category=category)
-                if not joueurs_channel:
-                    joueurs_channel = await guild.create_voice_channel(joueurs_name, category=category)
-                # Renommer si besoin
-                if membres_channel.name != membres_name:
-                    await membres_channel.edit(name=membres_name)
-                if joueurs_channel.name != joueurs_name:
-                    await joueurs_channel.edit(name=joueurs_name)
-            await asyncio.sleep(60)
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
     restore_all_json_from_postgres()
     # Recharge l'état XP après restauration
@@ -3319,7 +3323,6 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     atexit.register(exit_handler)
-    bot.loop.create_task(update_stats_channels())
     print("Démarrage du bot...")
     try:
         bot.run(TOKEN)
