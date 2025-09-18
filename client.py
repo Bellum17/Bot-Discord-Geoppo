@@ -295,6 +295,8 @@ async def purge(interaction: discord.Interaction, nombre: int):
 @bot.event
 async def on_ready():
     print(f'Bot connecté en tant que {bot.user.name}')
+    # Définir un statut permanent avec l'emoji et le texte demandé
+    await bot.change_presence(status=discord.Status.online, activity=discord.Activity(type=discord.ActivityType.watching, name="<a:PX_Loading:1418207969082085447> Finalisations en cours"))
     GUILD_ID = 1393301496283795640
     guild = bot.get_guild(GUILD_ID)
     try:
