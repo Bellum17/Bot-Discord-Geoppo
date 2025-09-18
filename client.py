@@ -2580,6 +2580,19 @@ async def creer_role_mute(interaction: discord.Interaction):
     )
     await interaction.followup.send(embed=embed, ephemeral=True)
 
+    # Commande slash guide, accessible à tous, embed privé
+    @bot.tree.command(name="guide", description="Guide de présentation du serveur")
+    async def guide(interaction: discord.Interaction):
+        texte = "⠀\n> − Voici le serveur **PAX RUINAE** <:Logo_PaxRuinae:1410270324985168032>, descendant de plusieurs serveurs sous la direction de <@772821169664426025>. Celui-ci se veut le plus ambitieux de ces projets dans le cadre d'un rôleplay **« Nouvelle ère »**, où le but est de créer sa propre nation dans un monde qui a chuté à la suite d’un apocalypse causé par l'homme. Dans ce rôleplay, vous ferez peut-être partie de ses acteurs qui marqueront l'histoire par leur RP ✨.\n> \n> − Dans ce serveur, vous trouverez tout ce dont vous avez besoin via les boutons en dessous de l'embed, avec des guides dédiés aux questions que vous pourriez vous poser, notamment sur l'intégration au RP ou sur son fonctionnement même. Et ici, dans l'ordre, je vous présente les catégories les plus importantes afin de comprendre l'organisation du serveur.\n> \n> − En premier lieu, il y a la catégorie **« Informations Générales »**. Il y a notamment les différents salons d'annonces : <#1393350471661387846> pour le HRP, et le salon <#1411066244848816179> pour le RP, le salon <#1411066404597268550>, mais également les différents salons liés aux partenariats : le salon <#1410271619930259496> listant les partenariats actifs, le salon <#1411068927978508359> qui liste les différentes conditions si un autre serveur propose un partenariat avec le nôtre, et le salon <#1395547599649378304> qui met en avant la dite pub du serveur.\n> \n> − Il y a également la catégorie **« L'Administration »**. Ici, il y a différents salons qui listent les actions du staff de **PAX RUINAE** <:Logo_PaxRuinae:1410270324985168032>, comme les <#1411053256926302278>, mais également un explicatif des rôles de celui-ci <#1414284229189046385> et de la <#1414283395537572030>.\n> \n> − Enfin, il y a la catégorie **« Règlements du Serveur »**. Elle liste directement tous les règlements dans cette catégorie-ci, à savoir le <#1393318935692312787>, le <#1410450203433111764>, le <#1393324090562973776>, le <#1393324354619576362>, le <#1393325798685016256>, et enfin le <#1410450325248147560>.\n> \n> − <:PX_Attention:1417603257953685616> : Si vous n'avez pas forcément tous les salons dans votre liste, n'oubliez pas d'activer l’option **« Montrer tous les salons »**, cela vous aidera à vous repérer. Dans cette présentation, les salons cités sont __non exhaustifs__ ; il en existe d'autres, plus ou moins importants.\n⠀"
+        embed = discord.Embed(
+            title="🪐 | Guide de Présentation du Serveur",
+            description=texte,
+            color=0x162e50
+        )
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1412872314525192233/1418276962417512539/PAX_RUINAE.png?ex=68cd88da&is=68cc375a&hm=2d58da59a0d97e4263759860e12b0bf72d7f35785a72d8b1eb08efc1c83310d5&")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1418276839624937512/image.png?ex=68cd88bc&is=68cc373c&hm=ad9b769761c9b1c2d4dc6f0a783d3bcaf0ee3c09a48e8cc4fc5a9865458ae806&")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 # Générer les choix pour la durée
 duration_choices = [
     app_commands.Choice(name=label, value=str(seconds))
