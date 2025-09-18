@@ -3269,6 +3269,22 @@ async def update_stats_voice_channels(guild):
 
 # === Bloc principal déplacé à la toute fin du fichier ===
 
+# === Tâche planifiée pour mise à jour des salons vocaux de stats ===
+from discord.ext.tasks import loop
+
+@loop(seconds=600)
+async def update_stats_voice_channels_periodically():
+    GUILD_ID = 1393301496283795640  # Remplace par l'ID de ton serveur si besoin
+    guild = bot.get_guild(GUILD_ID)
+    if guild:
+        print("[DEBUG] Mise à jour périodique des salons vocaux de stats")
+        await update_stats_voice_channels(guild)
+
+@bot.event
+async def on_ready():
+    # ...existing code...
+    update_stats_voice_channels_periodically.start()
+
 # === Mise à jour dynamique des salons vocaux de stats ===
 @bot.event
 async def on_member_update(before, after):
@@ -3300,14 +3316,21 @@ async def on_member_update(before, after):
     joueurs_channel = guild.get_channel(joueurs_channel_id) if joueurs_channel_id else None
     membres_name = f"{noms_salons['membres']}{membres_count}"
     joueurs_name = f"{noms_salons['joueurs']}{joueurs_count}"
+    # Mise à jour uniquement si le nombre a changé
     if membres_channel:
-        print(f"[DEBUG] Mise à jour du nom du salon Membres: {membres_channel.name} -> {membres_name}")
-        await membres_channel.edit(name=membres_name)
+        if membres_channel.name != membres_name:
+            print(f"[DEBUG] Mise à jour du nom du salon Membres: {membres_channel.name} -> {membres_name}")
+            await membres_channel.edit(name=membres_name)
+        else:
+            print(f"[DEBUG] Aucun changement pour le salon Membres")
     else:
         print(f"[DEBUG] Salon Membres non trouvé (ID: {membres_channel_id})")
     if joueurs_channel:
-        print(f"[DEBUG] Mise à jour du nom du salon Joueurs: {joueurs_channel.name} -> {joueurs_name}")
-        await joueurs_channel.edit(name=joueurs_name)
+        if joueurs_channel.name != joueurs_name:
+            print(f"[DEBUG] Mise à jour du nom du salon Joueurs: {joueurs_channel.name} -> {joueurs_name}")
+            await joueurs_channel.edit(name=joueurs_name)
+        else:
+            print(f"[DEBUG] Aucun changement pour le salon Joueurs")
     else:
         print(f"[DEBUG] Salon Joueurs non modifié (aucun ID fourni)")
 
