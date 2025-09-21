@@ -46,7 +46,6 @@ def save_all_json_to_postgres():
         return
     files = [
         ("balances.json", os.path.join(DATA_DIR, "balances.json")),
-        ("balances_backup.json", os.path.join(DATA_DIR, "balances_backup.json")),
         ("loans.json", os.path.join(DATA_DIR, "loans.json")),
         ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
         ("levels.json", os.path.join(DATA_DIR, "levels.json")),
@@ -3174,6 +3173,21 @@ async def creer_emprunt(
     if somme <= 0 or taux < 0 or duree <= 0:
         await interaction.followup.send("> Paramètres invalides.", ephemeral=True)
         return
+    # Vérification du PIB si le demandeur est un pays
+    pib = None
+    if role:
+        # On suppose que le PIB est stocké dans pays_images ou balances ou autre structure, à adapter selon ta logique
+        # Ici, on cherche dans balances, mais il faudrait une vraie structure pays avec le PIB
+        # Exemple : pays_pib = {role_id: pib}
+        # Pour l'exemple, on utilise balances, à adapter !
+        if str(role.id) in balances:
+            # PIB stocké dans balances ? À adapter !
+            pib = balances.get(str(role.id), None)
+        # Si tu as une vraie structure pays, remplace cette logique
+        # Si le PIB est trouvé et la somme dépasse 50% du PIB, erreur
+        if pib and somme > 0.5 * pib:
+            await interaction.followup.send(f"> Erreur : L'emprunt ({somme}) dépasse 50% du PIB du pays ({pib}). Emprunt refusé pour raison de stabilité économique !", ephemeral=True)
+            return
     # Débit du rôle ou Banque centrale
     if role:
         balances[role_id] = balances.get(role_id, 0) - somme
@@ -3214,7 +3228,7 @@ async def creer_emprunt(
             f"> **Demandeur :** {interaction.user.mention}\n"
             f"> **Montant :** {somme}\n"
             f"> **Taux :** {taux}%\n"
-            f"> **Durée :** {duree} jours\n"
+            f"> **Durée :** {duree}\n"
             f"> **Nombre de paiements :** {nombre_paiement if nombre_paiement else 'Non défini'}\n"
             f"> **Débiteur :** {debiteur}{INVISIBLE_CHAR}"
         ),
@@ -3222,7 +3236,64 @@ async def creer_emprunt(
         timestamp=datetime.datetime.now()
     )
     await send_log(interaction.guild, embed=embed)
-    await interaction.followup.send(f"Emprunt créé et {somme} crédités à {interaction.user.mention}.", ephemeral=True)
+    # Log dans le salon staff
+    staff_channel_id = 1412876030980391063
+    staff_channel = interaction.guild.get_channel(staff_channel_id)
+    if staff_channel:
+        await staff_channel.send(embed=embed)
+
+
+# Commande /liste_emprunt : affiche la liste des emprunts du joueur avec pagination
+@bot.tree.command(name="liste_emprunt", description="Affiche la liste de vos emprunts")
+async def liste_emprunt(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    # Filtrer les emprunts du joueur
+    emprunts_user = [e for e in loans if e["demandeur_id"] == user_id]
+    if not emprunts_user:
+        await interaction.response.send_message("> Vous n'avez aucun emprunt en cours.", ephemeral=True)
+        return
+    # Pagination : 5 emprunts par page
+    pages = []
+    for i in range(0, len(emprunts_user), 5):
+        emprunts_page = emprunts_user[i:i+5]
+        texte = ""
+        for idx, emprunt in enumerate(emprunts_page, start=i+1):
+            # Calcul du montant à rembourser
+            montant_rembourse = int(emprunt["somme"] * (1 + emprunt["taux"] / 100))
+            if emprunt["role_id"]:
+                # Emprunt auprès d'un rôle
+                role_obj = interaction.guild.get_role(int(emprunt["role_id"])) if emprunt["role_id"] else None
+                role_name = role_obj.mention if role_obj else "Rôle inconnu"
+                texte += (
+                    "⠀\n"
+                    f"> {idx}. − Emprunt avec {role_name} :\n"
+                    f"> − **Durée :** {emprunt['duree']}\n"
+                    f"> − **Taux d'intérêt :** {emprunt['taux']}%\n"
+                    f"> − **Somme emprunté :** {emprunt['somme']} {MONNAIE_EMOJI}\n"
+                    f"> − **Somme à remboursé :** {montant_rembourse} {MONNAIE_EMOJI}\n⠀"
+                )
+            else:
+                # Emprunt auprès de la Banque centrale
+                texte += (
+                    "⠀\n"
+                    f"> {idx}. − Emprunt formulé à la **Banque centrale** :\n"
+                    f"> − **Durée :** {emprunt['duree']}\n"
+                    f"> − **Taux d'intérêt :** {emprunt['taux']}%\n"
+                    f"> − **Somme emprunté :** {emprunt['somme']} {MONNAIE_EMOJI}\n"
+                    f"> − **Somme à remboursé :** {montant_rembourse} {MONNAIE_EMOJI}\n⠀"
+                )
+        embed = discord.Embed(
+            title="💰 | Liste des Emprunts",
+            description=texte,
+            color=EMBED_COLOR
+        )
+        pages.append(embed)
+    # Affichage avec pagination si besoin
+    if len(pages) == 1:
+        await interaction.response.send_message(embed=pages[0], ephemeral=True)
+    else:
+        view = PaginationView(pages, interaction.user.id)
+        await interaction.response.send_message(embed=pages[0], view=view, ephemeral=True)
 
 # Commande /remboursement : sélectionne un emprunt et effectue un paiement
 @bot.tree.command(name="remboursement", description="Rembourse un emprunt en cours")
