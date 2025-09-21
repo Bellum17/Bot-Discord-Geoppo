@@ -3299,69 +3299,53 @@ async def liste_emprunt(interaction: discord.Interaction):
 @bot.tree.command(name="remboursement", description="Rembourse un emprunt en cours")
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
-    emprunt_id="ID de l'emprunt à rembourser",
+    numero_emprunt="Numéro de l'emprunt à rembourser (voir /liste_emprunt)",
     montant="Montant à rembourser"
 )
 async def remboursement(
     interaction: discord.Interaction,
-    emprunt_id: str,
+    numero_emprunt: int,
     montant: int
 ):
+    """
+    Permet de rembourser un emprunt en cours en saisissant son numéro (voir /liste_emprunt).
+    Si l'emprunt est auprès de la Banque centrale, l'argent est détruit.
+    Si l'emprunt est auprès d'un pays (rôle), l'argent est transféré à ce pays.
+    """
     await interaction.response.defer(ephemeral=True)
     user_id = str(interaction.user.id)
-    # Recherche de l'emprunt
-    emprunt = next((e for e in loans if e["id"] == emprunt_id and e["demandeur_id"] == user_id), None)
-    if not emprunt:
-        await interaction.followup.send("> Emprunt non trouvé ou non autorisé.", ephemeral=True)
+    emprunts_user = [e for e in loans if e["demandeur_id"] == user_id]
+    if not emprunts_user:
+        await interaction.followup.send("> Aucun emprunt trouvé pour vous.", ephemeral=True)
         return
+    if numero_emprunt < 1 or numero_emprunt > len(emprunts_user):
+        await interaction.followup.send(f"> Numéro d'emprunt invalide. Utilisez /liste_emprunt pour voir vos emprunts.", ephemeral=True)
+        return
+    emprunt = emprunts_user[numero_emprunt - 1]
+    # Vérification du montant
     if montant <= 0 or montant > emprunt["restant"]:
-        await interaction.followup.send("> Montant invalide.", ephemeral=True)
+        await interaction.followup.send(f"> Montant invalide. Il reste à rembourser : {emprunt['restant']} {MONNAIE_EMOJI}.", ephemeral=True)
         return
-    # Calcul des intérêts si dernier paiement
-    reste_apres = emprunt["restant"] - montant
-    paiement_final = reste_apres == 0
-    interet = 0
-    if paiement_final:
-        interet = int(emprunt["somme"] * emprunt["taux"] / 100)
-    total_rembourse = montant + interet
-    # Débit du demandeur
-    balances[user_id] = balances.get(user_id, 0) - total_rembourse
-    # Crédit du rôle ou Banque centrale
-    role_id = emprunt["role_id"] if emprunt["role_id"] else "BOT"
-    balances[role_id] = balances.get(role_id, 0) + total_rembourse
-    # Mise à jour de l'emprunt
-    emprunt["restant"] = reste_apres
-    emprunt["remboursements"].append({
-        "montant": montant,
-        "interet": interet,
-        "date": int(time.time())
-    })
+    # Remboursement
+    emprunt["restant"] -= montant
+    emprunt["remboursements"].append({"montant": montant, "date": int(time.time())})
     save_loans(loans)
+    # Débit du joueur
+    balances[user_id] = balances.get(user_id, 0) - montant
+    # Crédit du pays ou destruction
+    if emprunt["role_id"]:
+        # Créditer le pays
+        balances[emprunt["role_id"]] = balances.get(emprunt["role_id"], 0) + montant
+        destinataire = interaction.guild.get_role(int(emprunt["role_id"])).mention if interaction.guild.get_role(int(emprunt["role_id"])) else "Pays inconnu"
+    else:
+        destinataire = "Banque centrale (argent détruit)"
     save_balances(balances)
-    # Log de la transaction
-    log_transaction(
-        from_id=user_id,
-        to_id=role_id,
-        amount=total_rembourse,
-        transaction_type="remboursement",
-        guild_id=str(interaction.guild.id)
-    )
     save_all_json_to_postgres()
-    # Log embed
-    embed = discord.Embed(
-        title="💸 | Remboursement d'emprunt",
-        description=(
-            f"> **Emprunteur :** {interaction.user.mention}\n"
-            f"> **Montant remboursé :** {montant}\n"
-            f"> **Intérêt payé :** {interet}\n"
-            f"> **Emprunt restant :** {reste_apres}\n"
-            f"> **Crédité à :** {'Banque centrale' if emprunt['role_id'] is None else emprunt['role_id']}{INVISIBLE_CHAR}"
-        ),
-        color=EMBED_COLOR,
-        timestamp=datetime.datetime.now()
+    # Message de confirmation
+    await interaction.followup.send(
+        f"> Remboursement de {montant} {MONNAIE_EMOJI} effectué pour l'emprunt n°{numero_emprunt}.\n> Destinataire : {destinataire}\n> Il reste à rembourser : {emprunt['restant']} {MONNAIE_EMOJI}.",
+        ephemeral=True
     )
-    await send_log(interaction.guild, embed=embed)
-    await interaction.followup.send(f"Remboursement effectué. {'Emprunt terminé !' if paiement_final else ''}", ephemeral=True)
 
     # === Mise à jour des salons vocaux de stats ===
 
