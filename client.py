@@ -1,3 +1,108 @@
+# === CALENDRIER RP ===
+CALENDRIER_FILE = os.path.join(DATA_DIR, "calendrier.json")
+CALENDRIER_CHANNEL_ID = 1419301872996712458
+CALENDRIER_IMAGE_URL = "https://zupimages.net/up/21/03/vl8j.png"
+CALENDRIER_COLOR = 0x162e5
+CALENDRIER_EMOJI = "<:PX_Calendrier:1417607613587259505>"
+CALENDRIER_MONTHS = [
+    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+]
+
+def load_calendrier():
+    if os.path.exists(CALENDRIER_FILE):
+        with open(CALENDRIER_FILE, "r") as f:
+            return json.load(f)
+    return None
+
+def save_calendrier(data):
+    with open(CALENDRIER_FILE, "w") as f:
+        json.dump(data, f)
+
+def reset_calendrier():
+    if os.path.exists(CALENDRIER_FILE):
+        os.remove(CALENDRIER_FILE)
+
+from discord.ext.tasks import loop
+import pytz
+import datetime
+
+@bot.tree.command(name="calendrier", description="Lance le calendrier RP pour une année donnée")
+@app_commands.describe(annee="Année RP à lancer (ex: 2025)")
+@app_commands.checks.has_permissions(administrator=True)
+async def calendrier(interaction: discord.Interaction, annee: int):
+    # Initialisation ou reprise
+    calendrier_data = load_calendrier()
+    if calendrier_data:
+        await interaction.response.send_message(f"> Un calendrier est déjà en cours pour l'année {calendrier_data['annee']} ! Utilisez /reset-calendrier pour recommencer.", ephemeral=True)
+        return
+    calendrier_data = {
+        "annee": annee,
+        "mois_index": 0,
+        "jour_index": 0, # 0 = 1/2, 1 = 2/2
+        "last_update": None
+    }
+    save_calendrier(calendrier_data)
+    await interaction.response.send_message(f"> Calendrier RP lancé pour l'année {annee}. Mise à jour chaque jour à minuit (heure Paris).", ephemeral=True)
+    calendrier_update_task.start()
+
+@bot.tree.command(name="reset-calendrier", description="Réinitialise le calendrier RP")
+@app_commands.checks.has_permissions(administrator=True)
+async def reset_calendrier_cmd(interaction: discord.Interaction):
+    reset_calendrier()
+    await interaction.response.send_message("> Le calendrier RP a été réinitialisé.", ephemeral=True)
+
+@loop(minutes=1)
+async def calendrier_update_task():
+    calendrier_data = load_calendrier()
+    if not calendrier_data:
+        calendrier_update_task.stop()
+        return
+    # Vérifier si on doit avancer (minuit heure Paris)
+    paris_tz = pytz.timezone("Europe/Paris")
+    now = datetime.datetime.now(paris_tz)
+    last_update = calendrier_data.get("last_update")
+    if last_update:
+        last_update_dt = datetime.datetime.fromisoformat(last_update)
+        last_update_dt = paris_tz.localize(last_update_dt)
+        if last_update_dt.date() == now.date():
+            return # déjà mis à jour aujourd'hui
+    # Avancer le calendrier
+    mois_index = calendrier_data["mois_index"]
+    jour_index = calendrier_data["jour_index"]
+    if mois_index >= len(CALENDRIER_MONTHS):
+        calendrier_update_task.stop()
+        return
+    mois = CALENDRIER_MONTHS[mois_index]
+    jour_str = "1/2" if jour_index == 0 else "2/2"
+    # Poster le message
+    channel = bot.get_channel(CALENDRIER_CHANNEL_ID)
+    if channel:
+        embed = discord.Embed(
+            description=f"⠀\n> {CALENDRIER_EMOJI} | {mois} {jour_str}\n⠀",
+            color=CALENDRIER_COLOR
+        )
+        embed.set_image(url=CALENDRIER_IMAGE_URL)
+        await channel.send(embed=embed)
+    # Avancer le jour
+    if jour_index == 0:
+        calendrier_data["jour_index"] = 1
+    else:
+        calendrier_data["jour_index"] = 0
+        calendrier_data["mois_index"] += 1
+    calendrier_data["last_update"] = now.isoformat()
+    save_calendrier(calendrier_data)
+    # Stop si Décembre 2/2 passé
+    if calendrier_data["mois_index"] >= len(CALENDRIER_MONTHS):
+        calendrier_update_task.stop()
+
+@bot.event
+async def on_ready():
+    # ...existing code...
+    # Relancer la tâche calendrier si besoin
+    calendrier_data = load_calendrier()
+    if calendrier_data and calendrier_data["mois_index"] < len(CALENDRIER_MONTHS):
+        if not calendrier_update_task.is_running():
+            calendrier_update_task.start()
 """
 #!/usr/bin/env python3
 Bot Discord pour la gestion d'économie.
@@ -1457,12 +1562,12 @@ async def creer_pays(
                     title="🏛️ | Un nouveau Pays fait son apparition",
                     description=(
                         "⠀\n"
-                        f"> − Nom du pays : {role.mention}\n"
-                        f"> − Gouvernement : {gouvernement_role.mention if gouvernement_role else 'Non défini'}\n"
-                        f"> − Régime Politique : {regime_role.mention if regime_role else 'Non défini'}\n"
-                        f"> − Religion : {religion_role.mention if religion_role else 'Non défini'}\n"
-                        f"> − Continent : {continent_role.mention if continent_role else 'Non défini'}\n"
-                        f"> − Drapeau personnalisé : {drapeau_emoji}\n"
+                        f"> − **Nom du pays** : {role.mention}\n"
+                        f"> − **Gouvernement** : {gouvernement_role.mention if gouvernement_role else 'Non défini'}\n"
+                        f"> − **Régime Politique** : {regime_role.mention if regime_role else 'Non défini'}\n"
+                        f"> − **Religion** : {religion_role.mention if religion_role else 'Non défini'}\n"
+                        f"> − **Continent** : {continent_role.mention if continent_role else 'Non défini'}\n"
+                        f"> − **Drapeau personnalisé** : {drapeau_emoji}\n"
                         "> \n"
                         f"> En te souhaitant une belle expérience {dirigeant.mention} sur **PAX RUINAE** !\n⠀"
                     ),
