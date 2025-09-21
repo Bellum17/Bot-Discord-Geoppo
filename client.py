@@ -46,11 +46,23 @@ def save_all_json_to_postgres():
         return
     files = [
         ("balances.json", os.path.join(DATA_DIR, "balances.json")),
+        ("balances_backup.json", os.path.join(DATA_DIR, "balances_backup.json")),
         ("loans.json", os.path.join(DATA_DIR, "loans.json")),
         ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
         ("levels.json", os.path.join(DATA_DIR, "levels.json")),
         ("xp_system_status.json", os.path.join(DATA_DIR, "xp_system_status.json")),
         ("lvl_log_channel.json", os.path.join(DATA_DIR, "lvl_log_channel.json")),
+        ("calendrier.json", os.path.join(DATA_DIR, "calendrier.json")),
+        ("active_mutes.json", os.path.join(DATA_DIR, "active_mutes.json")),
+        ("mp_tri_responses.json", os.path.join(DATA_DIR, "mp_tri_responses.json")),
+        ("log_channel.json", os.path.join(DATA_DIR, "log_channel.json")),
+        ("message_log_channel.json", os.path.join(DATA_DIR, "message_log_channel.json")),
+        ("mute_log_channel.json", os.path.join(DATA_DIR, "mute_log_channel.json")),
+        ("pays_log_channel.json", os.path.join(DATA_DIR, "pays_log_channel.json")),
+        ("pays_images.json", os.path.join(DATA_DIR, "pays_images.json")),
+        ("status_channel.json", os.path.join(DATA_DIR, "status_channel.json")),
+        ("status_message.json", os.path.join(DATA_DIR, "status_message.json")),
+        ("bot_status.json", os.path.join(DATA_DIR, "bot_status.json")),
     ]
     try:
         print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
