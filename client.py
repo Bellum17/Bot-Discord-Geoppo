@@ -3588,7 +3588,9 @@ async def calendrier_update_task():
     last_update = calendrier_data.get("last_update")
     if last_update:
         last_update_dt = datetime.datetime.fromisoformat(last_update)
-        last_update_dt = paris_tz.localize(last_update_dt)
+        # Ne pas relocaliser si tzinfo déjà présent
+        if last_update_dt.tzinfo is None:
+            last_update_dt = paris_tz.localize(last_update_dt)
         if last_update_dt.date() == now.date():
             return # déjà mis à jour aujourd'hui
     # Avancer le calendrier
