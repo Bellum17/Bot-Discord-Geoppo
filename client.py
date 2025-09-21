@@ -3444,7 +3444,7 @@ async def guide(interaction: discord.Interaction):
 CALENDRIER_FILE = os.path.join(DATA_DIR, "calendrier.json")
 CALENDRIER_CHANNEL_ID = 1419301872996712458
 CALENDRIER_IMAGE_URL = "https://zupimages.net/up/21/03/vl8j.png"
-CALENDRIER_COLOR = 0x162e5
+CALENDRIER_COLOR = 0x162e50
 CALENDRIER_EMOJI = "<:PX_Calendrier:1417607613587259505>"
 CALENDRIER_MONTHS = [
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
@@ -3520,7 +3520,11 @@ async def calendrier_update_task():
     channel = bot.get_channel(CALENDRIER_CHANNEL_ID)
     if channel:
         embed = discord.Embed(
-            description=f"⠀\n> {CALENDRIER_EMOJI} | {mois} {jour_str}\n⠀",
+            description=(
+                "\u2800\n"
+                f"> {CALENDRIER_EMOJI} **{mois} {calendrier_data['annee']} ({jour_str})**\n"
+                "\u2800"
+            ),
             color=CALENDRIER_COLOR
         )
         embed.set_image(url=CALENDRIER_IMAGE_URL)
