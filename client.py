@@ -846,7 +846,10 @@ async def on_message(message):
     user_id = str(message.author.id)
     if user_id not in levels:
         levels[user_id] = {"xp": 0, "level": 1}
-    levels[user_id]["xp"] += 1
+    # Calcul XP : 1 XP de base + 1 XP tous les 10 caractères
+    char_count = len(message.content)
+    xp_gain = 1 + (char_count // 10)
+    levels[user_id]["xp"] += xp_gain
     xp = levels[user_id]["xp"]
     level = levels[user_id]["level"]
     next_level_xp = xp_for_level(level)
@@ -2911,35 +2914,45 @@ def save_mp_tri_responses(data):
 
 mp_tri_responses = load_mp_tri_responses()
 
-@bot.tree.command(name="mp", description="Envoie un MP à tous les membres avec choix Oui/Non (admin seulement)")
+@bot.tree.command(name="invites", description="Envoie une invitation Discord en MP à tous les membres (admin seulement)")
 @app_commands.checks.has_permissions(administrator=True)
-async def mp(interaction: discord.Interaction):
-    await interaction.response.send_message("Envoi des messages privés en cours...", ephemeral=True)
+async def invites(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     guild = interaction.guild
-    mp_tri_responses = load_mp_tri_responses()
-    embed = discord.Embed(
-        title="🔔 Tri des membres PAX RUINAE",
-        description=(
-            "Sur le serveur **PAX RUINAE** <:PX_PaxRuinae:1410270324985168032>, nous procédons actuellement à un tri entre les membres actifs et inactifs.\n\n"
-            "**Si tu es actif et prêt à t'investir sur le serveur en incarnant un pays, clique sur le bouton `Oui`.**\n"
-            "Dans le cas contraire, clique sur le bouton `Non`."
-        ),
-        color=EMBED_COLOR
-    )
-    embed.set_image(url=IMAGE_URL)
-    count = 0
+    invite_link = "https://discord.gg/paxr"
+    # Charger les IDs déjà invités
+    mp_invites_file = os.path.join(DATA_DIR, "mp_invites.json")
+    if os.path.exists(mp_invites_file):
+        with open(mp_invites_file, "r") as f:
+            invited_ids = set(json.load(f))
+    else:
+        invited_ids = set()
+    sent_count = 0
+    failed_count = 0
     for member in guild.members:
-        if member.bot:
-            continue
-        # Ne pas renvoyer de MP si déjà répondu
-        if str(member.id) in mp_tri_responses:
+        if member.bot or str(member.id) in invited_ids:
             continue
         try:
-            await member.send(embed=embed, view=TriView(guild))
-            count += 1
+            await member.send(f"Invitation à rejoindre le serveur : {invite_link}")
+            invited_ids.add(str(member.id))
+            sent_count += 1
         except Exception:
-            pass  # Ignore les membres qui n'acceptent pas les MP
-    await interaction.followup.send(f"Message envoyé à {count} membres.", ephemeral=True)
+            failed_count += 1
+    # Sauvegarder les IDs invités
+    with open(mp_invites_file, "w") as f:
+        json.dump(list(invited_ids), f)
+    await interaction.followup.send(f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ne recevront pas de doublon.", ephemeral=True)
+    # The following block seems misplaced and should be removed or integrated properly.
+    # If you want to send a message with TriView, you should loop over members again or merge logic.
+    # For now, comment out or remove the block to fix indentation error.
+    # if str(member.id) in mp_tri_responses:
+    #     continue
+    # try:
+    #     await member.send(embed=embed, view=TriView(guild))
+    #     count += 1
+    # except Exception:
+    #     pass  # Ignore les membres qui n'acceptent pas les MP
+    # await interaction.followup.send(f"Message envoyé à {count} membres.", ephemeral=True)
 
 # === COMMANDES XP/LEVEL ===
 @bot.tree.command(name="set_lvl", description="Active le système de niveau (XP)")
