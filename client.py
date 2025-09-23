@@ -1232,7 +1232,8 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Hindouisme", value="1417625845425766562"),
     discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
     discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
-    discord.app_commands.Choice(name="Athéisme", value="1417626362738512022")
+    discord.app_commands.Choice(name="Athéisme", value="1417626362738512022"),
+    discord.app_commands.Choice(name="Foi des Sept", value="1419446723310256138"),
 ])
 @app_commands.choices(religion=[
     discord.app_commands.Choice(name="Catholicisme", value="1417622211329659010"),
@@ -1244,7 +1245,8 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Hindouisme", value="1417625845425766562"),
     discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
     discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
-    discord.app_commands.Choice(name="Athéisme", value="1417626362738512022")
+    discord.app_commands.Choice(name="Athéisme", value="1417626362738512022"),
+    discord.app_commands.Choice(name="Foi des Sept", value="1419446723310256138"),
 ])
 async def creer_pays(
     interaction: discord.Interaction, 
@@ -1452,15 +1454,27 @@ async def creer_pays(
         # Envoi du message embed de confirmation
         try:
             print("[DEBUG] Envoi du message embed de confirmation...")
+            regime_role = interaction.guild.get_role(int(regime_politique)) if regime_politique else None
+            gouvernement_role = interaction.guild.get_role(int(gouvernement)) if gouvernement else None
+            religion_role = interaction.guild.get_role(int(religion)) if religion else None
+            continent_role_obj = interaction.guild.get_role(int(continent)) if continent else None
+            drapeau_emoji = drapeau_perso if drapeau_perso else ""
             embed = discord.Embed(
-                title="🏛️ Nouveau pays créé",
-                description=f"> **Pays:** {role.mention}\n"
-                    f"> **Continent:** {continent_role.mention}\n"
-                    f"> **Salon:** {channel.mention}\n"
-                    f"> **PIB:** {format_number(pib)} {MONNAIE_EMOJI}\n"
-                    f"> **Budget alloué:** {format_number(budget)} {MONNAIE_EMOJI}\n"
-                    f"> **Dirigeant:** {dirigeant.mention}{INVISIBLE_CHAR}",
-                color=EMBED_COLOR
+                title="🏛️ | Nouveau pays enregistré",
+                description=(
+                    "⠀\n"
+                    f"> − **Nom du pays :** {nom}\n"
+                    f"> − **Budget :** {format_number(budget)}\n"
+                    f"> − **PIB :** {format_number(pib)}\n"
+                    "> \n"
+                    f"> − **Continent :** {continent_role_obj.mention if continent_role_obj else 'Non défini'}\n"
+                    f"> − **Régime politique :** {regime_role.mention if regime_role else 'Non défini'}\n"
+                    f"> − **Forme de Gouvernement :** {gouvernement_role.mention if gouvernement_role else 'Non défini'}\n"
+                    f"> − **Religion d'État :** {religion_role.mention if religion_role else 'Non défini'}\n"
+                    "> \n"
+                    f"> − **Drapeau personnalisé :** {drapeau_emoji}\n⠀"
+                ),
+                color=0xebe3bd
             )
             embed.set_image(url=image if image and is_valid_image_url(image) else IMAGE_URL)
             await interaction.followup.send(embed=embed)
@@ -2075,10 +2089,40 @@ async def balance(interaction: discord.Interaction, role: discord.Role = None):
         return
     role_id = str(role.id)
     montant = balances.get(role_id, 0)
-    embed = discord.Embed(
-        description=f"> Le rôle {role.mention} possède {format_number(montant)} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
-        color=EMBED_COLOR
+    # Récupérer le PIB
+    pib = personnel.get(role_id, {}).get("pib") if "pib" in personnel.get(role_id, {}) else None
+    if pib is None:
+        # Si le PIB n'est pas dans personnel, essayer dans pays_log_channel_data ou autre structure
+        pib = None
+        # Ajoutez ici une autre logique si le PIB est stocké ailleurs
+    # Calcul de la dette totale (somme des emprunts avec taux)
+    dette_totale = 0
+    for emprunt in loans:
+        if emprunt.get("role_id") == role_id:
+            principal = emprunt.get("somme", 0)
+            taux = emprunt.get("taux", 0)
+            dette_totale += int(principal * (1 + taux / 100))
+    # Pourcentage dette/PIB
+    pourcentage_pib = 0
+    if pib and pib > 0:
+        pourcentage_pib = round((dette_totale / pib) * 100, 2)
+    # Texte formaté
+    texte = (
+        "⠀\n"
+        "> <:PX_MDollars:1417605571019804733> | **Budget :** {}\n"
+        "> <:PX_MDollars:1417605571019804733> | **PIB :** {}\n"
+        "> <:PX_MDollars:1417605571019804733> | **Dette total :** {} - ({}% au PIB)\n⠀"
+    ).format(
+        format_number(montant),
+        format_number(pib) if pib is not None else "Non défini",
+        format_number(dette_totale),
+        pourcentage_pib
     )
+    embed = discord.Embed(
+        description=texte,
+        color=0xebe3bd
+    )
+    embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Commande pour ajouter de l'argent à un rôle
@@ -3307,45 +3351,62 @@ async def remboursement(
     numero_emprunt: int,
     montant: int
 ):
-    """
-    Permet de rembourser un emprunt en cours en saisissant son numéro (voir /liste_emprunt).
-    Si l'emprunt est auprès de la Banque centrale, l'argent est détruit.
-    Si l'emprunt est auprès d'un pays (rôle), l'argent est transféré à ce pays.
-    """
-    await interaction.response.defer(ephemeral=True)
-    user_id = str(interaction.user.id)
-    emprunts_user = [e for e in loans if e["demandeur_id"] == user_id]
-    if not emprunts_user:
-        await interaction.followup.send("> Aucun emprunt trouvé pour vous.", ephemeral=True)
-        return
-    if numero_emprunt < 1 or numero_emprunt > len(emprunts_user):
-        await interaction.followup.send(f"> Numéro d'emprunt invalide. Utilisez /liste_emprunt pour voir vos emprunts.", ephemeral=True)
-        return
-    emprunt = emprunts_user[numero_emprunt - 1]
-    # Vérification du montant
-    if montant <= 0 or montant > emprunt["restant"]:
-        await interaction.followup.send(f"> Montant invalide. Il reste à rembourser : {emprunt['restant']} {MONNAIE_EMOJI}.", ephemeral=True)
-        return
-    # Remboursement
-    emprunt["restant"] -= montant
-    emprunt["remboursements"].append({"montant": montant, "date": int(time.time())})
-    save_loans(loans)
-    # Débit du joueur
-    balances[user_id] = balances.get(user_id, 0) - montant
-    # Crédit du pays ou destruction
-    if emprunt["role_id"]:
-        # Créditer le pays
-        balances[emprunt["role_id"]] = balances.get(emprunt["role_id"], 0) + montant
-        destinataire = interaction.guild.get_role(int(emprunt["role_id"])).mention if interaction.guild.get_role(int(emprunt["role_id"])) else "Pays inconnu"
-    else:
-        destinataire = "Banque centrale (argent détruit)"
-    save_balances(balances)
-    save_all_json_to_postgres()
-    # Message de confirmation
-    await interaction.followup.send(
-        f"> Remboursement de {montant} {MONNAIE_EMOJI} effectué pour l'emprunt n°{numero_emprunt}.\n> Destinataire : {destinataire}\n> Il reste à rembourser : {emprunt['restant']} {MONNAIE_EMOJI}.",
-        ephemeral=True
-    )
+        """
+        Permet de rembourser un emprunt en cours en saisissant son numéro (voir /liste_emprunt).
+        Le montant à rembourser inclut le taux d'intérêt.
+        Si l'emprunt est auprès de la Banque centrale, l'argent est détruit.
+        Si l'emprunt est auprès d'un pays (rôle), l'argent est transféré à ce pays.
+        """
+        await interaction.response.defer(ephemeral=True)
+        user_id = str(interaction.user.id)
+        emprunts_user = [e for e in loans if e["demandeur_id"] == user_id]
+        if not emprunts_user:
+            await interaction.followup.send("> Aucun emprunt trouvé pour vous.", ephemeral=True)
+            return
+        if numero_emprunt < 1 or numero_emprunt > len(emprunts_user):
+            await interaction.followup.send(f"> Numéro d'emprunt invalide. Utilisez /liste_emprunt pour voir vos emprunts.", ephemeral=True)
+            return
+        emprunt = emprunts_user[numero_emprunt - 1]
+        # Calcul du montant total à rembourser (somme + intérêts)
+        principal = emprunt.get("somme", 0)
+        taux = emprunt.get("taux", 0)
+        total_remboursement = int(principal * (1 + taux / 100))
+        deja_rembourse = sum([r["montant"] for r in emprunt.get("remboursements", [])])
+        restant = total_remboursement - deja_rembourse
+        if montant <= 0 or montant > restant:
+            await interaction.followup.send(f"> Montant invalide. Il reste à rembourser : {restant} {MONNAIE_EMOJI}.", ephemeral=True)
+            return
+        # Débit du joueur
+        if balances.get(user_id, 0) < montant:
+            await interaction.followup.send(f"> Fonds insuffisants pour le remboursement.", ephemeral=True)
+            return
+        balances[user_id] = balances.get(user_id, 0) - montant
+        # Crédit du pays ou destruction
+        if emprunt["role_id"]:
+            # Créditer le pays
+            balances[emprunt["role_id"]] = balances.get(emprunt["role_id"], 0) + montant
+            destinataire = interaction.guild.get_role(int(emprunt["role_id"])).mention if interaction.guild.get_role(int(emprunt["role_id"])) else "Pays inconnu"
+        else:
+            destinataire = "Banque centrale (argent détruit)"
+        # Mise à jour du remboursement
+        if "remboursements" not in emprunt:
+            emprunt["remboursements"] = []
+        emprunt["remboursements"].append({"montant": montant, "date": int(time.time())})
+        save_balances(balances)
+        save_loans(loans)
+        save_all_json_to_postgres()
+        restant_apres = restant - montant
+        # Message de confirmation
+        if restant_apres <= 0:
+            await interaction.followup.send(
+                f"> Emprunt n°{numero_emprunt} totalement remboursé ! ✅\n> Destinataire : {destinataire}\n> Montant total remboursé : {total_remboursement} {MONNAIE_EMOJI}.",
+                ephemeral=True
+            )
+        else:
+            await interaction.followup.send(
+                f"> Remboursement de {montant} {MONNAIE_EMOJI} effectué pour l'emprunt n°{numero_emprunt}.\n> Destinataire : {destinataire}\n> Il reste à rembourser : {restant_apres} {MONNAIE_EMOJI}.",
+                ephemeral=True
+            )
 
     # === Mise à jour des salons vocaux de stats ===
 
