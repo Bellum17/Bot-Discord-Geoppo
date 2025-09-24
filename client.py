@@ -54,7 +54,6 @@ def save_all_json_to_postgres():
         ("calendrier.json", os.path.join(DATA_DIR, "calendrier.json")),
         ("active_mutes.json", os.path.join(DATA_DIR, "active_mutes.json")),
         ("mp_tri_responses.json", os.path.join(DATA_DIR, "mp_tri_responses.json")),
-        ("invites.json", os.path.join(DATA_DIR, "invites.json")),
         ("log_channel.json", os.path.join(DATA_DIR, "log_channel.json")),
         ("message_log_channel.json", os.path.join(DATA_DIR, "message_log_channel.json")),
         ("mute_log_channel.json", os.path.join(DATA_DIR, "mute_log_channel.json")),
@@ -1291,20 +1290,20 @@ async def creer_pays(
     await interaction.response.defer()
     
     # Vérifier que le budget est positif
-            for filename, content in files:
+    ROLE_PAYS_PAR_DEFAUT = 1417253039491776733
     if budget <= 0:
         await interaction.followup.send("> Le budget initial doit être positif.", ephemeral=True)
         return
-    
+
     # Image par défaut ou personnalisée
     pays_image = IMAGE_URL
     if image and is_valid_image_url(image):
         pays_image = image
-    
+
     # Emoji par défaut ou personnalisé
     emoji_pays = drapeau_salon if drapeau_salon else ""
     emoji_message = drapeau_perso if drapeau_perso else "🏛️"
-    
+
     # IDs des rôles à gérer
     # Ajout des rôles économie, régime politique, gouvernement et rôle par défaut
     roles_a_ajouter = [ROLE_PAYS_PAR_DEFAUT]
