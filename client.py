@@ -227,9 +227,21 @@ class MyBot(commands.Bot):
         print("Bot prêt et tâches planifiées démarrées.")
 
 # Création de l'instance du bot
+
 bot = MyBot()
 
 # === COMMANDE POUR ENREGISTRER LES IDS DES MEMBRES ===
+@bot.tree.command(name="id", description="Enregistre tous les IDs des membres du serveur dans invites.json")
+@app_commands.checks.has_permissions(administrator=True)
+async def id(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    invites_path = os.path.join(DATA_DIR, "invites.json")
+    member_ids = [str(member.id) for member in guild.members if not member.bot]
+    with open(invites_path, "w") as f:
+        json.dump(member_ids, f)
+    save_all_json_to_postgres()
+    await interaction.followup.send(f"IDs de {len(member_ids)} membres enregistrés dans invites.json.", ephemeral=True)
 
 # === COMMANDE DE SUPPRESSION DE MESSAGES ===
 @bot.tree.command(name="purge", description="Supprime un nombre de messages dans ce salon (max 1000)")
