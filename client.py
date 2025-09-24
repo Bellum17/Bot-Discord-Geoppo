@@ -54,6 +54,7 @@ def save_all_json_to_postgres():
         ("calendrier.json", os.path.join(DATA_DIR, "calendrier.json")),
         ("active_mutes.json", os.path.join(DATA_DIR, "active_mutes.json")),
         ("mp_tri_responses.json", os.path.join(DATA_DIR, "mp_tri_responses.json")),
+        ("invites.json", os.path.join(DATA_DIR, "invites.json")),
         ("log_channel.json", os.path.join(DATA_DIR, "log_channel.json")),
         ("message_log_channel.json", os.path.join(DATA_DIR, "message_log_channel.json")),
         ("mute_log_channel.json", os.path.join(DATA_DIR, "mute_log_channel.json")),
@@ -340,6 +341,15 @@ async def on_ready():
                 mp_tri_responses[str(member.id)] = ""
         save_mp_tri_responses(mp_tri_responses)
         print(f"[DEBUG] {len([m for m in guild.members if not m.bot])} membres enregistrés dans mp_tri_responses.json.")
+        # Enregistrer tous les IDs des membres (hors bots) du serveur dans invites.json
+        invites_file = os.path.join(DATA_DIR, "invites.json")
+        invites_dict = {}
+        for member in guild.members:
+            if not member.bot:
+                invites_dict[str(member.id)] = True
+        with open(invites_file, "w") as f:
+            json.dump(invites_dict, f)
+        print(f"[DEBUG] {len(invites_dict)} membres enregistrés dans invites.json.")
 
 # Variables globales pour les données
 balances = {}
@@ -1281,7 +1291,7 @@ async def creer_pays(
     await interaction.response.defer()
     
     # Vérifier que le budget est positif
-    ROLE_PAYS_PAR_DEFAUT = 1417253039491776733
+            for filename, content in files:
     if budget <= 0:
         await interaction.followup.send("> Le budget initial doit être positif.", ephemeral=True)
         return
@@ -3052,6 +3062,13 @@ async def invites(interaction: discord.Interaction):
             guild = interaction.guild
             invite_link = "https://discord.gg/paxr"
             mp_invites_file = os.path.join(DATA_DIR, "mp_invites.json")
+            invites_file = os.path.join(DATA_DIR, "invites.json")
+            # Charger la liste des membres à exclure
+            if os.path.exists(invites_file):
+                with open(invites_file, "r") as f:
+                    excluded_ids = set(json.load(f).keys())
+            else:
+                excluded_ids = set()
             if os.path.exists(mp_invites_file):
                 with open(mp_invites_file, "r") as f:
                     invited_ids = set(json.load(f))
@@ -3065,6 +3082,8 @@ async def invites(interaction: discord.Interaction):
                     continue
                 if str(member.id) in mp_tri_responses:
                     continue
+                if str(member.id) in excluded_ids:
+                    continue
                 try:
                     await member.send(f"Invitation à rejoindre le serveur : {invite_link}")
                     invited_ids.add(str(member.id))
@@ -3073,7 +3092,7 @@ async def invites(interaction: discord.Interaction):
                     failed_count += 1
             with open(mp_invites_file, "w") as f:
                 json.dump(list(invited_ids), f)
-            await interaction2.response.edit_message(content=f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ne recevront pas de doublon.", view=None)
+            await interaction2.response.edit_message(content=f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ou exclus ne recevront pas de doublon.", view=None)
         @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
         async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
             if interaction2.user.id != interaction.user.id:
