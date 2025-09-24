@@ -2975,10 +2975,6 @@ class TriView(discord.ui.View):
 
     @discord.ui.button(label="Oui", style=discord.ButtonStyle.success)
     async def oui(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Enregistrer la réponse
-        mp_tri_responses = load_mp_tri_responses()
-        mp_tri_responses[str(interaction.user.id)] = "oui"
-        save_mp_tri_responses(mp_tri_responses)
         await interaction.response.send_message("Merci d'avoir confirmé votre présence !", ephemeral=True)
         # Log dans le salon spécifique
         log_channel_id = 1416369620310294548
@@ -2994,10 +2990,6 @@ class TriView(discord.ui.View):
 
     @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
     async def non(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Enregistrer la réponse
-        mp_tri_responses = load_mp_tri_responses()
-        mp_tri_responses[str(interaction.user.id)] = "non"
-        save_mp_tri_responses(mp_tri_responses)
         await interaction.response.send_message("Vous allez être retiré du serveur.", ephemeral=True)
         # Log dans le salon spécifique
         log_channel_id = 1416369620310294548
@@ -3777,23 +3769,7 @@ if __name__ == "__main__":
     try:
         import discord
         from discord.ext import commands
-        intents = discord.Intents.default()
-        intents.members = True
-        bot_for_ids = commands.Bot(command_prefix="!", intents=intents)
-
-        @bot_for_ids.event
-        async def on_ready():
-            guild = bot_for_ids.get_guild(1393301496283795640)
-            if guild:
-                mp_tri_responses = load_mp_tri_responses()
-                for member in guild.members:
-                    if not member.bot:
-                        mp_tri_responses[str(member.id)] = ""
-                save_mp_tri_responses(mp_tri_responses)
-                print(f"[DEBUG] {len(guild.members)} membres enregistrés dans mp_tri_responses.json.")
-            await bot_for_ids.close()
-
-        bot_for_ids.run(TOKEN)
+    # Suppression du bot secondaire et de toute référence à mp_tri_responses.json
         bot.run(TOKEN)
     except Exception as e:
         print(f"Erreur lors du démarrage du bot: {e}")
