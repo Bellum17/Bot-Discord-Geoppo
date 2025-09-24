@@ -229,6 +229,8 @@ class MyBot(commands.Bot):
 # Création de l'instance du bot
 bot = MyBot()
 
+# === COMMANDE POUR ENREGISTRER LES IDS DES MEMBRES ===
+
 # === COMMANDE DE SUPPRESSION DE MESSAGES ===
 @bot.tree.command(name="purge", description="Supprime un nombre de messages dans ce salon (max 1000)")
 @app_commands.checks.has_permissions(manage_messages=True)
@@ -2893,70 +2895,17 @@ class TriView(discord.ui.View):
         super().__init__(timeout=None)
         self.guild = guild
 
-    @discord.ui.button(label="Oui", style=discord.ButtonStyle.success)
-    async def oui(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Enregistrer la réponse
-        mp_tri_responses = load_mp_tri_responses()
-        mp_tri_responses[str(interaction.user.id)] = "oui"
-        save_mp_tri_responses(mp_tri_responses)
-        await interaction.response.send_message("Merci d'avoir confirmé votre présence !", ephemeral=True)
-        # Log dans le salon spécifique
-        log_channel_id = 1416369620310294548
-        log_channel = self.guild.get_channel(log_channel_id)
-        if log_channel:
-            embed = discord.Embed(
-                title="Réponse au tri des membres",
-                description=f"{interaction.user.mention} a répondu **OUI**.",
-                color=0x43b581,  # vert
-                timestamp=datetime.datetime.now()
-            )
-            await log_channel.send(embed=embed)
-
-    @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
-    async def non(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Enregistrer la réponse
-        mp_tri_responses = load_mp_tri_responses()
-        mp_tri_responses[str(interaction.user.id)] = "non"
-        save_mp_tri_responses(mp_tri_responses)
-        await interaction.response.send_message("Vous allez être retiré du serveur.", ephemeral=True)
-        # Log dans le salon spécifique
-        log_channel_id = 1416369620310294548
-        log_channel = self.guild.get_channel(log_channel_id)
-        if log_channel:
-            embed = discord.Embed(
-                title="Réponse au tri des membres",
-                description=f"{interaction.user.mention} a répondu **NON**.",
-                color=0xed4245,  # rouge
-                timestamp=datetime.datetime.now()
-            )
-            await log_channel.send(embed=embed)
-        try:
-            await self.guild.kick(interaction.user, reason="A répondu Non au tri des membres")
-        except Exception as e:
-            await interaction.followup.send(f"Erreur lors de l'exclusion : {e}", ephemeral=True)
-
-# === GESTION DES RÉPONSES AU TRI MP ===
-MP_TRI_RESPONSES_FILE = os.path.join(DATA_DIR, "mp_tri_responses.json")
-
-def load_mp_tri_responses():
-    if not os.path.exists(MP_TRI_RESPONSES_FILE):
-        with open(MP_TRI_RESPONSES_FILE, "w") as f:
-            json.dump({}, f)
-    try:
-        with open(MP_TRI_RESPONSES_FILE, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Erreur lors du chargement des réponses au tri MP: {e}")
-        return {}
-
-def save_mp_tri_responses(data):
-    try:
-        with open(MP_TRI_RESPONSES_FILE, "w") as f:
-            json.dump(data, f)
-    except Exception as e:
-        print(f"Erreur lors de la sauvegarde des réponses au tri MP: {e}")
-
-mp_tri_responses = load_mp_tri_responses()
+@bot.tree.command(name="id", description="Enregistre tous les IDs des membres du serveur dans invites.json")
+@app_commands.checks.has_permissions(administrator=True)
+async def id(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    invites_path = os.path.join(DATA_DIR, "invites.json")
+    member_ids = [str(member.id) for member in guild.members if not member.bot]
+    with open(invites_path, "w") as f:
+        json.dump(member_ids, f)
+    save_all_json_to_postgres()
+    await interaction.followup.send(f"IDs de {len(member_ids)} membres enregistrés dans invites.json.", ephemeral=True)
 
 @bot.tree.command(name="invites", description="Envoie une invitation Discord en MP à tous les membres (admin seulement)")
 @app_commands.checks.has_permissions(administrator=True)
