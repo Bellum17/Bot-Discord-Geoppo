@@ -1341,6 +1341,13 @@ async def creer_pays(
                 pass  # Utiliser la couleur par défaut
         print(f"[DEBUG] Création du rôle pays : {role_name}")
         role = await interaction.guild.create_role(**role_kwargs)
+        # Définir l'emoji comme icône du rôle si possible
+        if emoji_pays:
+            try:
+                await role.edit(unicode_emoji=emoji_pays)
+                print(f"[DEBUG] Icône du rôle définie sur l'emoji : {emoji_pays}")
+            except Exception as e:
+                print(f"[ERROR] Impossible de définir l'emoji comme icône de rôle : {e}")
         # Enregistrement du budget dans balances
         print(f"[DEBUG] Enregistrement du budget pour le pays {role.id} : {budget}")
         balances[str(role.id)] = budget
@@ -2778,37 +2785,50 @@ async def unmute(interaction: discord.Interaction, membre: discord.Member):
     raison="Raison du ban (optionnel)"
 )
 async def ban(interaction: discord.Interaction, membre: discord.Member, raison: str = None):
-    await interaction.response.defer(ephemeral=True)
-    try:
-        # DM au membre
-        try:
-            await membre.send(
-                f"Vous avez été **banni** du serveur **{interaction.guild.name}**."
-                + (f"\nRaison : {raison}" if raison else "")
-            )
-        except Exception:
-            pass
-
-        await membre.ban(reason=raison or f"Banni par {interaction.user} via /ban")
-        embed = discord.Embed(
-            description=f"> {membre.mention} a été **banni** du serveur.{INVISIBLE_CHAR}",
-            color=discord.Color.red()
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
-
-        # Log dans le salon de mute
-        log_embed = discord.Embed(
-            title="⛔ Ban appliqué",
-            description=f"> **Utilisateur :** {membre.mention}\n"
-                        f"> **Par :** {interaction.user.mention}\n"
-                        f"> **Raison :** {raison or 'Non spécifiée'}",
-            color=discord.Color.red(),
-            timestamp=datetime.datetime.now()
-        )
-        await send_mute_log(interaction.guild, log_embed)
-
-    except Exception as e:
-        await interaction.followup.send(f"> Erreur lors du ban : {e}", ephemeral=True)
+    class ConfirmBanView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=30)
+        @discord.ui.button(label="Oui", style=discord.ButtonStyle.success)
+        async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
+            if interaction2.user.id != interaction.user.id:
+                await interaction2.response.send_message("Vous n'êtes pas autorisé à confirmer ce ban.", ephemeral=True)
+                return
+            try:
+                try:
+                    await membre.send(
+                        f"Vous avez été **banni** du serveur **{interaction.guild.name}**."
+                        + (f"\nRaison : {raison}" if raison else "")
+                    )
+                except Exception:
+                    pass
+                await membre.ban(reason=raison or f"Banni par {interaction.user} via /ban")
+                embed = discord.Embed(
+                    description=f"> {membre.mention} a été **banni** du serveur.{INVISIBLE_CHAR}",
+                    color=discord.Color.red()
+                )
+                await interaction2.response.edit_message(content=None, embed=embed, view=None)
+                log_embed = discord.Embed(
+                    title="⛔ Ban appliqué",
+                    description=f"> **Utilisateur :** {membre.mention}\n"
+                                f"> **Par :** {interaction.user.mention}\n"
+                                f"> **Raison :** {raison or 'Non spécifiée'}",
+                    color=discord.Color.red(),
+                    timestamp=datetime.datetime.now()
+                )
+                await send_mute_log(interaction.guild, log_embed)
+            except Exception as e:
+                await interaction2.response.edit_message(content=f"> Erreur lors du ban : {e}", view=None)
+        @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
+        async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
+            if interaction2.user.id != interaction.user.id:
+                await interaction2.response.send_message("Vous n'êtes pas autorisé à annuler.", ephemeral=True)
+                return
+            await interaction2.response.edit_message(content="❌ Ban annulé.", view=None)
+    embed = discord.Embed(
+        description=f"> Voulez-vous vraiment bannir {membre.mention} ?",
+        color=discord.Color.red()
+    )
+    await interaction.response.send_message(embed=embed, view=ConfirmBanView(), ephemeral=True)
 
 # === LOG MUTE ===
 MUTE_LOG_FILE = os.path.join(DATA_DIR, "mute_log_channel.json")
@@ -3009,31 +3029,50 @@ mp_tri_responses = load_mp_tri_responses()
 @bot.tree.command(name="invites", description="Envoie une invitation Discord en MP à tous les membres (admin seulement)")
 @app_commands.checks.has_permissions(administrator=True)
 async def invites(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    guild = interaction.guild
-    invite_link = "https://discord.gg/paxr"
-    # Charger les IDs déjà invités
-    mp_invites_file = os.path.join(DATA_DIR, "mp_invites.json")
-    if os.path.exists(mp_invites_file):
-        with open(mp_invites_file, "r") as f:
-            invited_ids = set(json.load(f))
-    else:
-        invited_ids = set()
-    sent_count = 0
-    failed_count = 0
-    for member in guild.members:
-        if member.bot or str(member.id) in invited_ids:
-            continue
-        try:
-            await member.send(f"Invitation à rejoindre le serveur : {invite_link}")
-            invited_ids.add(str(member.id))
-            sent_count += 1
-        except Exception:
-            failed_count += 1
-    # Sauvegarder les IDs invités
-    with open(mp_invites_file, "w") as f:
-        json.dump(list(invited_ids), f)
-    await interaction.followup.send(f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ne recevront pas de doublon.", ephemeral=True)
+    class ConfirmInviteView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=30)
+        @discord.ui.button(label="Oui", style=discord.ButtonStyle.success)
+        async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
+            if interaction2.user.id != interaction.user.id:
+                await interaction2.response.send_message("Vous n'êtes pas autorisé à confirmer cette action.", ephemeral=True)
+                return
+            guild = interaction.guild
+            invite_link = "https://discord.gg/paxr"
+            mp_invites_file = os.path.join(DATA_DIR, "mp_invites.json")
+            if os.path.exists(mp_invites_file):
+                with open(mp_invites_file, "r") as f:
+                    invited_ids = set(json.load(f))
+            else:
+                invited_ids = set()
+            sent_count = 0
+            failed_count = 0
+            mp_tri_responses = load_mp_tri_responses()
+            for member in guild.members:
+                if member.bot or str(member.id) in invited_ids:
+                    continue
+                if str(member.id) in mp_tri_responses:
+                    continue
+                try:
+                    await member.send(f"Invitation à rejoindre le serveur : {invite_link}")
+                    invited_ids.add(str(member.id))
+                    sent_count += 1
+                except Exception:
+                    failed_count += 1
+            with open(mp_invites_file, "w") as f:
+                json.dump(list(invited_ids), f)
+            await interaction2.response.edit_message(content=f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ne recevront pas de doublon.", view=None)
+        @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
+        async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
+            if interaction2.user.id != interaction.user.id:
+                await interaction2.response.send_message("Vous n'êtes pas autorisé à annuler.", ephemeral=True)
+                return
+            await interaction2.response.edit_message(content="❌ Envoi d'invitations annulé.", view=None)
+    embed = discord.Embed(
+        description=f"> Voulez-vous vraiment envoyer une invitation à tous les membres ?",
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed, view=ConfirmInviteView(), ephemeral=True)
     # The following block seems misplaced and should be removed or integrated properly.
     # If you want to send a message with TriView, you should loop over members again or merge logic.
     # For now, comment out or remove the block to fix indentation error.
@@ -3652,7 +3691,7 @@ async def calendrier_update_task():
         embed = discord.Embed(
             description=(
                 "\u2800\n"
-                f"> {CALENDRIER_EMOJI} **{mois} {calendrier_data['annee']} ({jour_str})**\n"
+                f"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀{CALENDRIER_EMOJI} **{mois} {calendrier_data['annee']} ({jour_str})**\n"
                 "\u2800"
             ),
             color=CALENDRIER_COLOR
@@ -3683,6 +3722,22 @@ async def on_ready():
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
     restore_all_json_from_postgres()
+    # Forcer la restauration du statut du bot depuis PostgreSQL
+    status_file = os.path.join(DATA_DIR, "bot_status.json")
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        try:
+            import psycopg2
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("bot_status.json",))
+                    result = cur.fetchone()
+                    if result:
+                        with open(status_file, "w") as f:
+                            f.write(result[0])
+                        print("[DEBUG] bot_status.json restauré depuis PostgreSQL.")
+        except Exception as e:
+            print(f"[ERROR] Restauration bot_status.json depuis PostgreSQL : {e}")
     # Recharge l'état XP après restauration
     xp_system_status = load_xp_system_status()
     load_all_data()
