@@ -330,6 +330,13 @@ async def on_ready():
     # Met à jour ou crée les salons vocaux de stats
     if guild:
         await update_stats_voice_channels(guild)
+        # Enregistrer tous les IDs des membres (hors bots) du serveur dans mp_tri_responses.json
+        mp_tri_responses = load_mp_tri_responses()
+        for member in guild.members:
+            if not member.bot:
+                mp_tri_responses[str(member.id)] = mp_tri_responses.get(str(member.id), "")
+        save_mp_tri_responses(mp_tri_responses)
+        print(f"[DEBUG] {len([m for m in guild.members if not m.bot])} membres enregistrés dans mp_tri_responses.json.")
 
 # Variables globales pour les données
 balances = {}
