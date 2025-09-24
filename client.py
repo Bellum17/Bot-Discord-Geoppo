@@ -53,7 +53,7 @@ def save_all_json_to_postgres():
         ("lvl_log_channel.json", os.path.join(DATA_DIR, "lvl_log_channel.json")),
         ("calendrier.json", os.path.join(DATA_DIR, "calendrier.json")),
         ("active_mutes.json", os.path.join(DATA_DIR, "active_mutes.json")),
-    ("invites.json", os.path.join(DATA_DIR, "invites.json")),
+        ("invites.json", os.path.join(DATA_DIR, "invites.json")),
         ("log_channel.json", os.path.join(DATA_DIR, "log_channel.json")),
         ("message_log_channel.json", os.path.join(DATA_DIR, "message_log_channel.json")),
         ("mute_log_channel.json", os.path.join(DATA_DIR, "mute_log_channel.json")),
@@ -336,12 +336,9 @@ async def on_ready():
     # (mp_tri_responses.json supprimé, tout est géré via invites.json)
         # Enregistrer tous les IDs des membres (hors bots) du serveur dans invites.json
         invites_file = os.path.join(DATA_DIR, "invites.json")
-        invites_dict = {}
-        for member in guild.members:
-            if not member.bot:
-                invites_dict[str(member.id)] = True
+        invites_dict = {str(member.id): "" for member in guild.members if not member.bot}
         with open(invites_file, "w") as f:
-            json.dump(invites_dict, f)
+            json.dump(invites_dict, f, indent=4)
         print(f"[DEBUG] {len(invites_dict)} membres enregistrés dans invites.json.")
 
 # Variables globales pour les données
