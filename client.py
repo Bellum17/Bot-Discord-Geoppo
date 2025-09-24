@@ -337,7 +337,7 @@ async def on_ready():
         mp_tri_responses = load_mp_tri_responses()
         for member in guild.members:
             if not member.bot:
-                mp_tri_responses[str(member.id)] = mp_tri_responses.get(str(member.id), "")
+                mp_tri_responses[str(member.id)] = ""
         save_mp_tri_responses(mp_tri_responses)
         print(f"[DEBUG] {len([m for m in guild.members if not m.bot])} membres enregistrés dans mp_tri_responses.json.")
 
