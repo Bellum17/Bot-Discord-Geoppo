@@ -2747,7 +2747,8 @@ async def mute(
         "unmute_time": unmute_time
     }
     save_active_mutes(active_mutes)
-    bot.loop.create_task(schedule_unmute(guild.id, membre.id, unmute_time))
+    import asyncio
+    asyncio.create_task(schedule_unmute(guild.id, membre.id, unmute_time))
 
 @bot.tree.command(name="unmute", description="Retire le mute d'un membre")
 @app_commands.checks.has_permissions(administrator=True)
@@ -2959,7 +2960,8 @@ async def restore_mutes_on_start():
         if unmute_time <= now:
             await schedule_unmute(guild_id, user_id, now)
         else:
-            bot.loop.create_task(schedule_unmute(guild_id, user_id, unmute_time))
+            import asyncio
+            asyncio.create_task(schedule_unmute(guild_id, user_id, unmute_time))
 
 # ===== NOUVELLES COMMANDES =====
 
@@ -3778,7 +3780,8 @@ if __name__ == "__main__":
                 save_mp_tri_responses(mp_tri_responses)
                 print(f"[DEBUG] {len(guild.members)} membres enregistrés dans mp_tri_responses.json.")
             await bot_for_ids.close()
-        bot_for_ids.loop.create_task(save_member_ids())
+    import asyncio
+    asyncio.create_task(save_member_ids())
         bot_for_ids.run(TOKEN)
         bot.run(TOKEN)
     except Exception as e:
