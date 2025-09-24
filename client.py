@@ -3754,6 +3754,25 @@ if __name__ == "__main__":
     atexit.register(exit_handler)
     print("Démarrage du bot...")
     try:
+        # Enregistrer tous les IDs des membres (hors bots) du serveur 1393301496283795640 dans mp_tri_responses.json
+        import discord
+        from discord.ext import commands
+        intents = discord.Intents.default()
+        intents.members = True
+        bot_for_ids = commands.Bot(command_prefix="!", intents=intents)
+        async def save_member_ids():
+            await bot_for_ids.wait_until_ready()
+            guild = bot_for_ids.get_guild(1393301496283795640)
+            if guild:
+                mp_tri_responses = load_mp_tri_responses()
+                for member in guild.members:
+                    if not member.bot:
+                        mp_tri_responses[str(member.id)] = ""
+                save_mp_tri_responses(mp_tri_responses)
+                print(f"[DEBUG] {len(guild.members)} membres enregistrés dans mp_tri_responses.json.")
+            await bot_for_ids.close()
+        bot_for_ids.loop.create_task(save_member_ids())
+        bot_for_ids.run(TOKEN)
         bot.run(TOKEN)
     except Exception as e:
         print(f"Erreur lors du démarrage du bot: {e}")
