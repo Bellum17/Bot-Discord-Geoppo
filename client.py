@@ -53,7 +53,7 @@ def save_all_json_to_postgres():
         ("lvl_log_channel.json", os.path.join(DATA_DIR, "lvl_log_channel.json")),
         ("calendrier.json", os.path.join(DATA_DIR, "calendrier.json")),
         ("active_mutes.json", os.path.join(DATA_DIR, "active_mutes.json")),
-        ("mp_tri_responses.json", os.path.join(DATA_DIR, "mp_tri_responses.json")),
+    ("invites.json", os.path.join(DATA_DIR, "invites.json")),
         ("log_channel.json", os.path.join(DATA_DIR, "log_channel.json")),
         ("message_log_channel.json", os.path.join(DATA_DIR, "message_log_channel.json")),
         ("mute_log_channel.json", os.path.join(DATA_DIR, "mute_log_channel.json")),
@@ -333,13 +333,7 @@ async def on_ready():
     # Met à jour ou crée les salons vocaux de stats
     if guild:
         await update_stats_voice_channels(guild)
-        # Enregistrer tous les IDs des membres (hors bots) du serveur dans mp_tri_responses.json
-        mp_tri_responses = load_mp_tri_responses()
-        for member in guild.members:
-            if not member.bot:
-                mp_tri_responses[str(member.id)] = ""
-        save_mp_tri_responses(mp_tri_responses)
-        print(f"[DEBUG] {len([m for m in guild.members if not m.bot])} membres enregistrés dans mp_tri_responses.json.")
+    # (mp_tri_responses.json supprimé, tout est géré via invites.json)
         # Enregistrer tous les IDs des membres (hors bots) du serveur dans invites.json
         invites_file = os.path.join(DATA_DIR, "invites.json")
         invites_dict = {}
