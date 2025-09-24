@@ -2964,10 +2964,9 @@ async def invites(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     guild = interaction.guild
     invite_link = "https://discord.gg/paxr"
-    # Charger les IDs déjà invités
-    mp_invites_file = os.path.join(DATA_DIR, "mp_invites.json")
-    if os.path.exists(mp_invites_file):
-        with open(mp_invites_file, "r") as f:
+    invites_path = os.path.join(DATA_DIR, "invites.json")
+    if os.path.exists(invites_path):
+        with open(invites_path, "r") as f:
             invited_ids = set(json.load(f))
     else:
         invited_ids = set()
@@ -2983,8 +2982,9 @@ async def invites(interaction: discord.Interaction):
         except Exception:
             failed_count += 1
     # Sauvegarder les IDs invités
-    with open(mp_invites_file, "w") as f:
+    with open(invites_path, "w") as f:
         json.dump(list(invited_ids), f)
+    save_all_json_to_postgres()
     await interaction.followup.send(f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ne recevront pas de doublon.", ephemeral=True)
     # The following block seems misplaced and should be removed or integrated properly.
     # If you want to send a message with TriView, you should loop over members again or merge logic.
