@@ -1,91 +1,20 @@
+def save_all_json_to_postgres():
+    """Sauvegarde tous les fichiers JSON dans PostgreSQL via backup_json_to_postgres.py."""
+    try:
+        os.system(f"python3 backup_json_to_postgres.py")
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde PostgreSQL : {e}")
+
+def restore_all_json_from_postgres():
+    """Restaure tous les fichiers JSON depuis PostgreSQL via restore_json_from_postgres.py."""
+    try:
+        os.system(f"python3 restore_json_from_postgres.py")
+    except Exception as e:
+        print(f"Erreur lors de la restauration PostgreSQL : {e}")
 import os
 import sys
 import json
 import time
-import signal
-import atexit
-import random
-import re
-import datetime
-import typing
-"""
-#!/usr/bin/env python3
-Bot Discord pour la gestion d'économie.
-Ce fichier peut être exécuté directement.
-"""
-import os
-import psycopg2
-# === Restauration automatique des fichiers JSON depuis PostgreSQL ===
-def restore_all_json_from_postgres():
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-    if not DATABASE_URL:
-        print("DATABASE_URL non défini, restauration PostgreSQL ignorée.")
-        return
-    try:
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT filename, content FROM json_backups")
-                files = cur.fetchall()
-            for filename, content in files:
-                filepath = os.path.join(DATA_DIR, filename)
-                with open(filepath, "w") as f:
-                    f.write(content)
-                print(f"Restauration automatique : {filename}")
-    except Exception as e:
-        print(f"Erreur lors de la restauration automatique depuis PostgreSQL : {e}")
-
-def save_all_json_to_postgres():
-    """Sauvegarde balances, balances_backup, loans, transactions dans PostgreSQL."""
-    import psycopg2
-    import os
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-    if not DATABASE_URL:
-        print("DATABASE_URL non défini, sauvegarde PostgreSQL ignorée.")
-        return
-    files = [
-        ("balances.json", os.path.join(DATA_DIR, "balances.json")),
-        ("loans.json", os.path.join(DATA_DIR, "loans.json")),
-        ("transactions.json", os.path.join(DATA_DIR, "transactions.json")),
-        ("levels.json", os.path.join(DATA_DIR, "levels.json")),
-        ("xp_system_status.json", os.path.join(DATA_DIR, "xp_system_status.json")),
-        ("lvl_log_channel.json", os.path.join(DATA_DIR, "lvl_log_channel.json")),
-        ("calendrier.json", os.path.join(DATA_DIR, "calendrier.json")),
-        ("active_mutes.json", os.path.join(DATA_DIR, "active_mutes.json")),
-        ("invites.json", os.path.join(DATA_DIR, "invites.json")),
-        ("log_channel.json", os.path.join(DATA_DIR, "log_channel.json")),
-        ("message_log_channel.json", os.path.join(DATA_DIR, "message_log_channel.json")),
-        ("mute_log_channel.json", os.path.join(DATA_DIR, "mute_log_channel.json")),
-        ("pays_log_channel.json", os.path.join(DATA_DIR, "pays_log_channel.json")),
-        ("pays_images.json", os.path.join(DATA_DIR, "pays_images.json")),
-        ("status_channel.json", os.path.join(DATA_DIR, "status_channel.json")),
-        ("status_message.json", os.path.join(DATA_DIR, "status_message.json")),
-        ("bot_status.json", os.path.join(DATA_DIR, "bot_status.json")),
-    ]
-    try:
-        pass
-    except Exception as e:
-        print(f"Exception: {e}")
-        print("[DEBUG] Connexion à PostgreSQL pour sauvegarde...")
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                    for filename, filepath in files:
-                        if os.path.exists(filepath):
-                            with open(filepath, "r") as f:
-                                content = f.read()
-                            print(f"[DEBUG] Sauvegarde du fichier {filename} dans PostgreSQL...")
-                            cur.execute("""
-                                INSERT INTO json_backups (filename, content, updated_at)
-                                VALUES (%s, %s, NOW())
-                                ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
-                            """, (filename, content))
-                            print(f"[DEBUG] Requête SQL exécutée pour {filename}.")
-            print("[DEBUG] Commit de la transaction PostgreSQL...")
-            conn.commit()
-        print("Sauvegarde automatique des fichiers JSON vers PostgreSQL effectuée.")
-    except Exception as e:
-        print(f"Erreur lors de la sauvegarde automatique vers PostgreSQL : {e}")
 
 import discord
 from discord.ext import commands
@@ -333,13 +262,6 @@ async def on_ready():
     # Met à jour ou crée les salons vocaux de stats
     if guild:
         await update_stats_voice_channels(guild)
-    # (mp_tri_responses.json supprimé, tout est géré via invites.json)
-        # Enregistrer tous les IDs des membres (hors bots) du serveur dans invites.json
-        invites_file = os.path.join(DATA_DIR, "invites.json")
-        invites_dict = {str(member.id): "" for member in guild.members if not member.bot}
-        with open(invites_file, "w") as f:
-            json.dump(invites_dict, f, indent=4)
-        print(f"[DEBUG] {len(invites_dict)} membres enregistrés dans invites.json.")
 
 # Variables globales pour les données
 balances = {}
@@ -1285,16 +1207,16 @@ async def creer_pays(
     if budget <= 0:
         await interaction.followup.send("> Le budget initial doit être positif.", ephemeral=True)
         return
-
+    
     # Image par défaut ou personnalisée
     pays_image = IMAGE_URL
     if image and is_valid_image_url(image):
         pays_image = image
-
+    
     # Emoji par défaut ou personnalisé
     emoji_pays = drapeau_salon if drapeau_salon else ""
     emoji_message = drapeau_perso if drapeau_perso else "🏛️"
-
+    
     # IDs des rôles à gérer
     # Ajout des rôles économie, régime politique, gouvernement et rôle par défaut
     roles_a_ajouter = [ROLE_PAYS_PAR_DEFAUT]
@@ -2750,8 +2672,7 @@ async def mute(
         "unmute_time": unmute_time
     }
     save_active_mutes(active_mutes)
-    import asyncio
-    asyncio.create_task(schedule_unmute(guild.id, membre.id, unmute_time))
+    bot.loop.create_task(schedule_unmute(guild.id, membre.id, unmute_time))
 
 @bot.tree.command(name="unmute", description="Retire le mute d'un membre")
 @app_commands.checks.has_permissions(administrator=True)
@@ -2963,8 +2884,7 @@ async def restore_mutes_on_start():
         if unmute_time <= now:
             await schedule_unmute(guild_id, user_id, now)
         else:
-            import asyncio
-            asyncio.create_task(schedule_unmute(guild_id, user_id, unmute_time))
+            bot.loop.create_task(schedule_unmute(guild_id, user_id, unmute_time))
 
 # ===== NOUVELLES COMMANDES =====
 
@@ -2975,6 +2895,10 @@ class TriView(discord.ui.View):
 
     @discord.ui.button(label="Oui", style=discord.ButtonStyle.success)
     async def oui(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Enregistrer la réponse
+        mp_tri_responses = load_mp_tri_responses()
+        mp_tri_responses[str(interaction.user.id)] = "oui"
+        save_mp_tri_responses(mp_tri_responses)
         await interaction.response.send_message("Merci d'avoir confirmé votre présence !", ephemeral=True)
         # Log dans le salon spécifique
         log_channel_id = 1416369620310294548
@@ -2990,6 +2914,10 @@ class TriView(discord.ui.View):
 
     @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
     async def non(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Enregistrer la réponse
+        mp_tri_responses = load_mp_tri_responses()
+        mp_tri_responses[str(interaction.user.id)] = "non"
+        save_mp_tri_responses(mp_tri_responses)
         await interaction.response.send_message("Vous allez être retiré du serveur.", ephemeral=True)
         # Log dans le salon spécifique
         log_channel_id = 1416369620310294548
@@ -3033,59 +2961,31 @@ mp_tri_responses = load_mp_tri_responses()
 @bot.tree.command(name="invites", description="Envoie une invitation Discord en MP à tous les membres (admin seulement)")
 @app_commands.checks.has_permissions(administrator=True)
 async def invites(interaction: discord.Interaction):
-    class ConfirmInviteView(discord.ui.View):
-        def __init__(self):
-            super().__init__(timeout=30)
-        @discord.ui.button(label="Oui", style=discord.ButtonStyle.success)
-        async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
-            if interaction2.user.id != interaction.user.id:
-                await interaction2.response.send_message("Vous n'êtes pas autorisé à confirmer cette action.", ephemeral=True)
-                return
-            guild = interaction.guild
-            invite_link = "https://discord.gg/paxr"
-            mp_invites_file = os.path.join(DATA_DIR, "mp_invites.json")
-            invites_file = os.path.join(DATA_DIR, "invites.json")
-            # Charger la liste des membres à exclure
-            if os.path.exists(invites_file):
-                with open(invites_file, "r") as f:
-                    excluded_ids = set(json.load(f).keys())
-            else:
-                excluded_ids = set()
-            if os.path.exists(mp_invites_file):
-                with open(mp_invites_file, "r") as f:
-                    invited_ids = set(json.load(f))
-            else:
-                invited_ids = set()
-            sent_count = 0
-            failed_count = 0
-            mp_tri_responses = load_mp_tri_responses()
-            for member in guild.members:
-                if member.bot or str(member.id) in invited_ids:
-                    continue
-                if str(member.id) in mp_tri_responses:
-                    continue
-                if str(member.id) in excluded_ids:
-                    continue
-                try:
-                    await member.send(f"Invitation à rejoindre le serveur : {invite_link}")
-                    invited_ids.add(str(member.id))
-                    sent_count += 1
-                except Exception:
-                    failed_count += 1
-            with open(mp_invites_file, "w") as f:
-                json.dump(list(invited_ids), f)
-            await interaction2.response.edit_message(content=f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ou exclus ne recevront pas de doublon.", view=None)
-        @discord.ui.button(label="Non", style=discord.ButtonStyle.danger)
-        async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
-            if interaction2.user.id != interaction.user.id:
-                await interaction2.response.send_message("Vous n'êtes pas autorisé à annuler.", ephemeral=True)
-                return
-            await interaction2.response.edit_message(content="❌ Envoi d'invitations annulé.", view=None)
-    embed = discord.Embed(
-        description=f"> Voulez-vous vraiment envoyer une invitation à tous les membres ?",
-        color=discord.Color.green()
-    )
-    await interaction.response.send_message(embed=embed, view=ConfirmInviteView(), ephemeral=True)
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    invite_link = "https://discord.gg/paxr"
+    # Charger les IDs déjà invités
+    mp_invites_file = os.path.join(DATA_DIR, "mp_invites.json")
+    if os.path.exists(mp_invites_file):
+        with open(mp_invites_file, "r") as f:
+            invited_ids = set(json.load(f))
+    else:
+        invited_ids = set()
+    sent_count = 0
+    failed_count = 0
+    for member in guild.members:
+        if member.bot or str(member.id) in invited_ids:
+            continue
+        try:
+            await member.send(f"Invitation à rejoindre le serveur : {invite_link}")
+            invited_ids.add(str(member.id))
+            sent_count += 1
+        except Exception:
+            failed_count += 1
+    # Sauvegarder les IDs invités
+    with open(mp_invites_file, "w") as f:
+        json.dump(list(invited_ids), f)
+    await interaction.followup.send(f"> Invitations envoyées à {sent_count} membres. {failed_count} échecs. Les membres déjà invités ne recevront pas de doublon.", ephemeral=True)
     # The following block seems misplaced and should be removed or integrated properly.
     # If you want to send a message with TriView, you should loop over members again or merge logic.
     # For now, comment out or remove the block to fix indentation error.
@@ -3735,22 +3635,6 @@ async def on_ready():
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
     restore_all_json_from_postgres()
-    # Forcer la restauration du statut du bot depuis PostgreSQL
-    status_file = os.path.join(DATA_DIR, "bot_status.json")
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if DATABASE_URL:
-        try:
-            import psycopg2
-            with psycopg2.connect(DATABASE_URL) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT content FROM json_backups WHERE filename = %s", ("bot_status.json",))
-                    result = cur.fetchone()
-                    if result:
-                        with open(status_file, "w") as f:
-                            f.write(result[0])
-                        print("[DEBUG] bot_status.json restauré depuis PostgreSQL.")
-        except Exception as e:
-            print(f"[ERROR] Restauration bot_status.json depuis PostgreSQL : {e}")
     # Recharge l'état XP après restauration
     xp_system_status = load_xp_system_status()
     load_all_data()
@@ -3767,9 +3651,6 @@ if __name__ == "__main__":
     atexit.register(exit_handler)
     print("Démarrage du bot...")
     try:
-        import discord
-        from discord.ext import commands
-    # Suppression du bot secondaire et de toute référence à mp_tri_responses.json
         bot.run(TOKEN)
     except Exception as e:
         print(f"Erreur lors du démarrage du bot: {e}")
