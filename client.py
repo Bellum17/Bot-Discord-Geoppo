@@ -1905,8 +1905,8 @@ async def classement(interaction: discord.Interaction):
             else:
                 medal = f"{rank}."
             role = interaction.guild.get_role(int(role_id))
-            mention = role.mention if role else f"ID: {role_id}"
-            desc += f"{medal} {mention} — {format_number(amount)} <:PX_MDollars:1417605571019804733>\n"
+            if role:
+                desc += f"{medal} {role.mention} — {format_number(amount)} <:PX_MDollars:1417605571019804733>\n"
         embed = discord.Embed(
             title="Classement des budgets par pays",
             description=desc,
