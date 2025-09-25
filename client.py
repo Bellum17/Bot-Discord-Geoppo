@@ -1883,16 +1883,45 @@ async def setlogpays(interaction: discord.Interaction, channel: discord.TextChan
 
 
 # Commande ranking simplifiée : affiche seulement l'argent total en circulation
-@bot.tree.command(name="ranking", description="Affiche l'argent total en circulation")
-async def ranking(interaction: discord.Interaction):
-    total_money = sum(balances.values())
-    embed = discord.Embed(
-        title="📊 Argent en circulation",
-        description=f"> **Total d'argent en circulation :** {format_number(total_money)} {MONNAIE_EMOJI}{INVISIBLE_CHAR}",
-        color=EMBED_COLOR
-    )
-    embed.set_image(url=IMAGE_URL)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# Commande classement : affiche le classement des membres par argent
+@bot.tree.command(name="classement", description="Affiche le classement des membres par argent")
+async def classement(interaction: discord.Interaction):
+    # Récupérer les 15 meilleurs membres par argent
+    classement = sorted(balances.items(), key=lambda x: x[1], reverse=True)
+    per_page = 15
+    pages = [classement[i:i+per_page] for i in range(0, len(classement), per_page)]
+    def make_embed(page_idx):
+        page = pages[page_idx]
+        desc = "⠀\n"
+        for idx, (user_id, amount) in enumerate(page):
+            rank = idx + 1 + page_idx * per_page
+            if rank == 1:
+                medal = "🥇"
+            elif rank == 2:
+                medal = "🥈"
+            elif rank == 3:
+                medal = "🥉"
+            else:
+                medal = f"{rank}."
+            member = interaction.guild.get_member(int(user_id))
+            name = member.display_name if member else f"ID: {user_id}"
+            desc += f"{medal} {name} — {format_number(amount)} {MONNAIE_EMOJI}\n"
+        embed = discord.Embed(
+            title="Classement des membres par argent",
+            description=desc,
+            color=EMBED_COLOR
+        )
+        embed.set_image(url=IMAGE_URL)
+        embed.set_footer(text=f"Page {page_idx+1}/{len(pages)}")
+        return embed
+    # Pagination
+    if not classement:
+        await interaction.response.send_message("Aucun membre n'a d'argent enregistré.", ephemeral=True)
+        return
+    current_page = 0
+    view = PaginationView([make_embed(i) for i in range(len(pages))], interaction.user.id)
+    await interaction.response.send_message(embed=make_embed(current_page), view=view)
 
 
 # Commande /payer : la cible est un rôle (pays) obligatoire, si rien n'est précisé l'argent est détruit (bot), et on ne save pas dans ce cas
