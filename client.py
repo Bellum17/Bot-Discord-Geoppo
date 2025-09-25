@@ -1894,7 +1894,7 @@ async def classement(interaction: discord.Interaction):
     def make_embed(page_idx):
         page = pages[page_idx]
         desc = "⠀\n"
-        for idx, (user_id, amount) in enumerate(page):
+        for idx, (role_id, amount) in enumerate(page):
             rank = idx + 1 + page_idx * per_page
             if rank == 1:
                 medal = "🥇"
@@ -1904,11 +1904,11 @@ async def classement(interaction: discord.Interaction):
                 medal = "🥉"
             else:
                 medal = f"{rank}."
-            member = interaction.guild.get_member(int(user_id))
-            name = member.display_name if member else f"ID: {user_id}"
-            desc += f"{medal} {name} — {format_number(amount)} {MONNAIE_EMOJI}\n"
+            role = interaction.guild.get_role(int(role_id))
+            mention = role.mention if role else f"ID: {role_id}"
+            desc += f"{medal} {mention} — {format_number(amount)} <:PX_MDollars:1417605571019804733>\n"
         embed = discord.Embed(
-            title="Classement des membres par argent",
+            title="Classement des budgets par pays",
             description=desc,
             color=EMBED_COLOR
         )
