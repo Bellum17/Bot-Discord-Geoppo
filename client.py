@@ -796,12 +796,6 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
     guild_id = str(message.guild.id)
-    # Log l'activité du message pour les stats
-    try:
-        from utils.stats import log_message_activity
-        log_message_activity(guild_id)
-    except Exception:
-        pass
     if not xp_system_status["servers"].get(guild_id, False):
         await bot.process_commands(message)
         return
@@ -844,33 +838,32 @@ async def on_message(message):
         palier = (levels[user_id]["level"] // 10) * 10
         member = message.guild.get_member(message.author.id)
         # Ajout du nouveau rôle de palier si atteint
-        if palier in palier_roles and member:
-            new_role = message.guild.get_role(palier_roles[palier])
-            if new_role:
-                await member.add_roles(new_role)
-                # Retrait de l'ancien rôle de palier
-                old_palier = palier - 10
-                if old_palier in palier_roles:
-                    old_role = message.guild.get_role(palier_roles[old_palier])
-                    if old_role:
-                        await member.remove_roles(old_role)
-                # Log d'attribution du rôle (embed stylisé)
-                lvl_channel_id = lvl_log_channel_data.get(guild_id)
-                if lvl_channel_id:
-                    channel = message.guild.get_channel(int(lvl_channel_id))
-                    if channel:
-                        await channel.send(f"> − {member.mention}")
-                        embed = discord.Embed(
-                            description=(
-                                "⠀\n"
-                                f"> ## {message.author.mention} est passé au **niveau {levels[user_id]['level']} !** 🎉\n"
-                                f"> **Il obtiens le grade de {new_role.mention} !**\n"
-                                "⠀"
-                            ),
-                            color=0x162e50
-                        )
-                        embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417983114390536363/PAX_RUINAE_5.gif?ex=68cc772f&is=68cb25af&hm=f095b505d44febce0e7a8cbf52fea9ac14c79aacaa17762ec66cb4d22ccc6b4d&")
-                        await channel.send(embed=embed)
+            if palier in palier_roles and member and levels[user_id]["level"] % 10 == 0:
+                new_role = message.guild.get_role(palier_roles[palier])
+                if new_role:
+                    await member.add_roles(new_role)
+                    # Retrait de l'ancien rôle de palier
+                    old_palier = palier - 10
+                    if old_palier in palier_roles:
+                        old_role = message.guild.get_role(palier_roles[old_palier])
+                        if old_role:
+                            await member.remove_roles(old_role)
+                    # Log d'attribution du rôle (embed stylisé)
+                    lvl_channel_id = lvl_log_channel_data.get(guild_id)
+                    if lvl_channel_id:
+                        channel = message.guild.get_channel(int(lvl_channel_id))
+                        if channel:
+                            await channel.send(f"> − {member.mention}")
+                            embed = discord.Embed(
+                                description=(
+                                    "⠀\n"
+                                    f"> ## {message.author.mention} a obtenu le grade de {new_role.mention} au **niveau {levels[user_id]['level']} !** 🎉\n"
+                                    "⠀"
+                                ),
+                                color=0x162e50
+                            )
+                            embed.set_image(url="https://cdn.discordapp.com/attachments/1412872314525192233/1417983114390536363/PAX_RUINAE_5.gif?ex=68cc772f&is=68cb25af&hm=f095b505d44febce0e7a8cbf52fea9ac14c79aacaa17762ec66cb4d22ccc6b4d&")
+                            await channel.send(embed=embed)
         # Log passage de niveau (embed stylisé)
         lvl_channel_id = lvl_log_channel_data.get(guild_id)
         if lvl_channel_id:
@@ -3574,8 +3567,12 @@ async def calendrier(interaction: discord.Interaction, annee: int):
 @bot.tree.command(name="reset-calendrier", description="Réinitialise le calendrier RP")
 @app_commands.checks.has_permissions(administrator=True)
 async def reset_calendrier_cmd(interaction: discord.Interaction):
+    # Arrête la tâche si elle tourne
+    if calendrier_update_task.is_running():
+        calendrier_update_task.stop()
+    # Supprime le fichier calendrier.json
     reset_calendrier()
-    await interaction.response.send_message("> Le calendrier RP a été réinitialisé.", ephemeral=True)
+    await interaction.response.send_message("> Le calendrier RP a été totalement réinitialisé. Tous les effets de /calendrier sont annulés.", ephemeral=True)
 
 @loop(minutes=1)
 async def calendrier_update_task():
@@ -3635,25 +3632,6 @@ async def on_ready():
     if calendrier_data and calendrier_data["mois_index"] < len(CALENDRIER_MONTHS):
         if not calendrier_update_task.is_running():
             calendrier_update_task.start()
-
-# Commande /stats : affiche un graphique de l'activité du serveur
-@bot.tree.command(name="stats", description="Affiche un graphique de l'activité du serveur (messages par jour)")
-async def stats(interaction: discord.Interaction):
-    await interaction.response.defer()
-    guild_id = str(interaction.guild.id)
-    try:
-        from utils.stats import generate_stats_graph
-        graph_path = generate_stats_graph(guild_id)
-    except Exception:
-        graph_path = None
-    if graph_path and os.path.exists(graph_path):
-        file = discord.File(graph_path, filename="stats.png")
-        embed = discord.Embed(title="Statistiques d'activité du serveur", color=EMBED_COLOR)
-        embed.set_image(url="attachment://stats.png")
-        await interaction.followup.send(embed=embed, file=file)
-    else:
-        await interaction.followup.send(
-            "> Aucune donnée d'activité disponible pour ce serveur.", ephemeral=True)
             
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
