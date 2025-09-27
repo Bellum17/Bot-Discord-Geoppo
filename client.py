@@ -838,7 +838,7 @@ async def on_message(message):
         palier = (levels[user_id]["level"] // 10) * 10
         member = message.guild.get_member(message.author.id)
         # Ajout du nouveau rôle de palier si atteint
-            if palier in palier_roles and member and levels[user_id]["level"] % 10 == 0:
+        if palier in palier_roles and member and levels[user_id]["level"] % 10 == 0:
                 new_role = message.guild.get_role(palier_roles[palier])
                 if new_role:
                     await member.add_roles(new_role)

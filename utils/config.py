@@ -1,0 +1,8 @@
+BALANCE_FILE = "balances.json"
+BALANCE_BACKUP_FILE = "balances_backup.json"
+LOG_FILE = "log_channel.json"
+MESSAGE_LOG_FILE = "message_log_channel.json"
+LOANS_FILE = "loans.json"
+PERSONNEL_FILE = "personnel.json"
+STATUS_BOT_FILE = "status_bot.json"
+TRANSACTION_LOG_FILE = "transaction_log.json"
