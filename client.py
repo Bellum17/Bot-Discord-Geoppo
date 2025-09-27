@@ -796,6 +796,12 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
     guild_id = str(message.guild.id)
+    # Log l'activité du message pour les stats
+    try:
+        from utils.stats import log_message_activity
+        log_message_activity(guild_id)
+    except Exception:
+        pass
     if not xp_system_status["servers"].get(guild_id, False):
         await bot.process_commands(message)
         return
@@ -1887,7 +1893,7 @@ async def setlogpays(interaction: discord.Interaction, channel: discord.TextChan
 # Commande classement : affiche le classement des membres par argent
 @bot.tree.command(name="classement", description="Affiche le classement des membres par argent")
 async def classement(interaction: discord.Interaction):
-    # Récupérer les 15 meilleurs membres par argent
+
     classement = sorted(balances.items(), key=lambda x: x[1], reverse=True)
     per_page = 15
     pages = [classement[i:i+per_page] for i in range(0, len(classement), per_page)]
@@ -1915,13 +1921,32 @@ async def classement(interaction: discord.Interaction):
         embed.set_image(url=IMAGE_URL)
         embed.set_footer(text=f"Page {page_idx+1}/{len(pages)}")
         return embed
-    # Pagination
+
     if not classement:
         await interaction.response.send_message("Aucun membre n'a d'argent enregistré.", ephemeral=True)
         return
-    current_page = 0
-    view = PaginationView([make_embed(i) for i in range(len(pages))], interaction.user.id)
-    await interaction.response.send_message(embed=make_embed(current_page), view=view)
+
+    class ClassementView(discord.ui.View):
+        def __init__(self, pages):
+            super().__init__(timeout=600)
+            self.pages = pages
+            self.page_idx = 0
+            self.message = None
+
+        @discord.ui.button(emoji="⬅️", style=discord.ButtonStyle.secondary)
+        async def prev(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
+            if self.page_idx > 0:
+                self.page_idx -= 1
+                await interaction_btn.response.edit_message(embed=make_embed(self.page_idx), view=self)
+
+        @discord.ui.button(emoji="➡️", style=discord.ButtonStyle.secondary)
+        async def next(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
+            if self.page_idx < len(self.pages) - 1:
+                self.page_idx += 1
+                await interaction_btn.response.edit_message(embed=make_embed(self.page_idx), view=self)
+
+    view = ClassementView(pages)
+    await interaction.response.send_message(embed=make_embed(0), view=view)
 
 
 # Commande /payer : la cible est un rôle (pays) obligatoire, si rien n'est précisé l'argent est détruit (bot), et on ne save pas dans ce cas
@@ -3610,6 +3635,25 @@ async def on_ready():
     if calendrier_data and calendrier_data["mois_index"] < len(CALENDRIER_MONTHS):
         if not calendrier_update_task.is_running():
             calendrier_update_task.start()
+
+# Commande /stats : affiche un graphique de l'activité du serveur
+@bot.tree.command(name="stats", description="Affiche un graphique de l'activité du serveur (messages par jour)")
+async def stats(interaction: discord.Interaction):
+    await interaction.response.defer()
+    guild_id = str(interaction.guild.id)
+    try:
+        from utils.stats import generate_stats_graph
+        graph_path = generate_stats_graph(guild_id)
+    except Exception:
+        graph_path = None
+    if graph_path and os.path.exists(graph_path):
+        file = discord.File(graph_path, filename="stats.png")
+        embed = discord.Embed(title="Statistiques d'activité du serveur", color=EMBED_COLOR)
+        embed.set_image(url="attachment://stats.png")
+        await interaction.followup.send(embed=embed, file=file)
+    else:
+        await interaction.followup.send(
+            "> Aucune donnée d'activité disponible pour ce serveur.", ephemeral=True)
             
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
