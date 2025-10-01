@@ -3558,7 +3558,8 @@ async def calendrier(interaction: discord.Interaction, annee: int):
         "annee": annee,
         "mois_index": 0,
         "jour_index": 0, # 0 = 1/2, 1 = 2/2
-        "last_update": None
+        "last_update": None,
+        "messages": []
     }
     save_calendrier(calendrier_data)
     await interaction.response.send_message(f"> Calendrier RP lancé pour l'année {annee}. Mise à jour chaque jour à minuit (heure Paris).", ephemeral=True)
@@ -3567,12 +3568,58 @@ async def calendrier(interaction: discord.Interaction, annee: int):
 @bot.tree.command(name="reset-calendrier", description="Réinitialise le calendrier RP")
 @app_commands.checks.has_permissions(administrator=True)
 async def reset_calendrier_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
     # Arrête la tâche si elle tourne
     if calendrier_update_task.is_running():
         calendrier_update_task.stop()
+    # Supprime les messages précédemment envoyés
+    calendrier_data = load_calendrier()
+    deleted_count = 0
+    channel = bot.get_channel(CALENDRIER_CHANNEL_ID)
+    message_ids = []
+    if calendrier_data:
+        message_ids = [int(mid) for mid in calendrier_data.get("messages", []) if str(mid).isdigit()]
+
+    # Fallback: si aucun ID stocké, tenter de retrouver les messages récents du bot
+    async def delete_message(message_id: int) -> None:
+        nonlocal deleted_count
+        if not channel:
+            return
+        try:
+            message = await channel.fetch_message(message_id)
+            await message.delete()
+            deleted_count += 1
+        except (discord.NotFound, discord.Forbidden):
+            pass
+        except discord.HTTPException:
+            pass
+
+    if channel:
+        if not message_ids:
+            message_ids = []
+            async for message in channel.history(limit=100):
+                if message.author != bot.user:
+                    continue
+                if not message.embeds:
+                    continue
+                embed = message.embeds[0]
+                embed_desc = embed.description or ""
+                if embed.image and embed.image.url == CALENDRIER_IMAGE_URL:
+                    message_ids.append(message.id)
+                    continue
+                if CALENDRIER_EMOJI in embed_desc:
+                    message_ids.append(message.id)
+        for mid in message_ids:
+            await delete_message(int(mid))
+
     # Supprime le fichier calendrier.json
     reset_calendrier()
-    await interaction.response.send_message("> Le calendrier RP a été totalement réinitialisé. Tous les effets de /calendrier sont annulés.", ephemeral=True)
+    await interaction.followup.send(
+        f"> Le calendrier RP a été totalement réinitialisé. Tous les effets de /calendrier sont annulés."
+        + (f" ({deleted_count} message(s) supprimé(s))." if deleted_count else ""),
+        ephemeral=True
+    )
 
 @bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
 async def help_command(interaction: discord.Interaction):
@@ -3678,7 +3725,9 @@ async def calendrier_update_task():
             color=CALENDRIER_COLOR
         )
         embed.set_image(url=CALENDRIER_IMAGE_URL)
-        await channel.send(embed=embed)
+        message = await channel.send(embed=embed)
+        calendrier_data.setdefault("messages", [])
+        calendrier_data["messages"].append(str(message.id))
     # Avancer le jour
     if jour_index == 0:
         calendrier_data["jour_index"] = 1
