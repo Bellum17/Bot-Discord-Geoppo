@@ -3605,9 +3605,12 @@ async def help_command(interaction: discord.Interaction):
     def format_commands(commands):
         return "\n".join(f"> • `{name}` — {description}" for name, description in commands) or "> • Aucune commande pour le moment."
 
-    embed = discord.Embed(
+    header_embed = discord.Embed(color=EMBED_COLOR)
+    header_embed.description = HELP_HEADER_SEPARATOR
+    header_embed.set_image(url=HELP_HEADER_IMAGE_URL)
+
+    content_embed = discord.Embed(
         description=(
-            f"{HELP_HEADER_SEPARATOR}\n"
             "⠀\n"
             "> ### Besoin d'un coup de main ?\n"
             "> Les commandes sont triées selon les autorisations nécessaires. Utilise-les via la barre slash.\n"
@@ -3615,14 +3618,13 @@ async def help_command(interaction: discord.Interaction):
         ),
         color=EMBED_COLOR,
     )
-    embed.set_image(url=HELP_HEADER_IMAGE_URL)
-    embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
-    embed.add_field(name="🔐 Commandes Administrateur (1/2)", value=format_commands(admin_commands_part1), inline=False)
-    embed.add_field(name="🔐 Commandes Administrateur (2/2)", value=format_commands(admin_commands_part2), inline=False)
-    embed.add_field(name="🧭 Commandes Membres", value=format_commands(member_commands), inline=False)
-    embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
+    content_embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
+    content_embed.add_field(name="🔐 Commandes Administrateur (1/2)", value=format_commands(admin_commands_part1), inline=False)
+    content_embed.add_field(name="🔐 Commandes Administrateur (2/2)", value=format_commands(admin_commands_part2), inline=False)
+    content_embed.add_field(name="🧭 Commandes Membres", value=format_commands(member_commands), inline=False)
+    content_embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embeds=[header_embed, content_embed], ephemeral=True)
 
 @loop(minutes=1)
 async def calendrier_update_task():
