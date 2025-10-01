@@ -3574,6 +3574,73 @@ async def reset_calendrier_cmd(interaction: discord.Interaction):
     reset_calendrier()
     await interaction.response.send_message("> Le calendrier RP a été totalement réinitialisé. Tous les effets de /calendrier sont annulés.", ephemeral=True)
 
+@bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
+async def help_command(interaction: discord.Interaction):
+    admin_commands_part1 = [
+        ("/purge", "Supprime jusqu'à 1000 messages dans un salon."),
+        ("/setlogeconomy", "Définit le salon de logs pour l'économie."),
+        ("/setstatus", "Met à jour le statut et le message du bot."),
+        ("/creer_pays", "Crée un pays avec ses salons et rôles associés."),
+        ("/modifier_image_pays", "Met à jour l'image utilisée pour un pays."),
+        ("/setlogpays", "Configure le salon de logs des actions liées aux pays."),
+        ("/reset_economie", "Réinitialise toutes les données économiques."),
+        ("/add_argent", "Ajoute des fonds à un pays."),
+        ("/supprimer_pays", "Supprime un pays et nettoie ses données."),
+        ("/modifier_pays", "Met à jour le nom, le dirigeant ou les rôles d'un pays."),
+        ("/creer_drapeau", "Génère un emoji drapeau à partir d'une image."),
+        ("/creer_role_mute", "Crée le rôle mute et applique les permissions."),
+        ("/mute", "Mute un membre pour une durée définie."),
+    ]
+
+    admin_commands_part2 = [
+        ("/unmute", "Retire le mute d'un membre."),
+        ("/ban", "Bannit un membre du serveur après confirmation."),
+        ("/setpermission_mute", "Réapplique les permissions du rôle mute partout."),
+        ("/setlogmute", "Définit le salon de logs pour les sanctions."),
+        ("/id", "Archive tous les IDs des membres."),
+        ("/invites", "Envoie une invitation en message privé à tous les membres."),
+        ("/set_lvl", "Active ou désactive le système de niveaux."),
+        ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
+        ("/creer_emprunt", "Crée un emprunt pour un membre ou un pays."),
+        ("/remboursement", "Valide un paiement sur un emprunt en cours."),
+        ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
+        ("/calendrier", "Lance les annonces du calendrier RP."),
+        ("/reset-calendrier", "Réinitialise le calendrier RP en cours."),
+    ]
+
+    member_commands = [
+        ("/classement", "Affiche le classement des pays par budget."),
+        ("/payer", "Transfère des fonds vers un autre pays ou la banque."),
+        ("/balance", "Consulte le budget de ton pays (ou d'un rôle autorisé)."),
+        ("/remove_argent", "Retire des fonds du pays que tu diriges."),
+        ("/classement_lvl", "Affiche le classement des membres par niveau."),
+        ("/liste_emprunt", "Liste tes emprunts en cours avec leur statut."),
+        ("/lvl", "Affiche ton niveau et ta progression XP."),
+        ("/guide", "Découvre la présentation du serveur."),
+        ("/help", "Affiche cette fenêtre d'aide."),
+    ]
+
+    def format_commands(commands):
+        return "\n".join(f"> • `{name}` — {description}" for name, description in commands) or "> • Aucune commande pour le moment."
+
+    embed = discord.Embed(
+        title="📚 | Centre d'aide PAX RUINAE",
+        description=(
+            "⠀\n"
+            "> ### Besoin d'un coup de main ?\n"
+            "> Les commandes sont triées selon les autorisations nécessaires. Utilise-les via la barre slash.\n"
+            "⠀"
+        ),
+        color=EMBED_COLOR,
+    )
+    embed.set_thumbnail(url=IMAGE_URL)
+    embed.add_field(name="🔐 Commandes Administrateur (1/2)", value=format_commands(admin_commands_part1), inline=False)
+    embed.add_field(name="🔐 Commandes Administrateur (2/2)", value=format_commands(admin_commands_part2), inline=False)
+    embed.add_field(name="🧭 Commandes Membres", value=format_commands(member_commands), inline=False)
+    embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 @loop(minutes=1)
 async def calendrier_update_task():
     calendrier_data = load_calendrier()
