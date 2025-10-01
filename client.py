@@ -68,6 +68,8 @@ IMAGE_URL = "https://zupimages.net/up/21/03/vl8j.png"
 MONNAIE_EMOJI = "<:Monnaie:1412039375063355473>"
 INVISIBLE_CHAR = "⠀"
 HELP_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1422937730177826827/c4959984-ba58-486b-a7c3-a17b231b80a9.png?ex=68de7d87&is=68dd2c07&hm=78336c03ba0fbcfd847d2e7a4e14307b2ecc964b97be95648fbc2a1a9884da9c&"
+HELP_HEADER_IMAGE_URL = "https://cdn.discordapp.com/attachments/1412872314525192233/1422963949682561096/Capture_decran_2025-10-01_a_17.10.31.png?ex=68de95f2&is=68dd4472&hm=75f6f6e77beb2dc7d09e85cf105a6dbd10570f08794388287ebdcf21e3645f2e&"
+HELP_HEADER_SEPARATOR = "-# ─────────────────────────────"
 
 # === Configuration générale du bot ===
 PRIMARY_GUILD_ID = 1393301496283795640
@@ -3604,8 +3606,8 @@ async def help_command(interaction: discord.Interaction):
         return "\n".join(f"> • `{name}` — {description}" for name, description in commands) or "> • Aucune commande pour le moment."
 
     embed = discord.Embed(
-        title="📚 | Centre d'aide PAX RUINAE",
         description=(
+            f"{HELP_HEADER_SEPARATOR}\n"
             "⠀\n"
             "> ### Besoin d'un coup de main ?\n"
             "> Les commandes sont triées selon les autorisations nécessaires. Utilise-les via la barre slash.\n"
@@ -3613,6 +3615,7 @@ async def help_command(interaction: discord.Interaction):
         ),
         color=EMBED_COLOR,
     )
+    embed.set_image(url=HELP_HEADER_IMAGE_URL)
     embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
     embed.add_field(name="🔐 Commandes Administrateur (1/2)", value=format_commands(admin_commands_part1), inline=False)
     embed.add_field(name="🔐 Commandes Administrateur (2/2)", value=format_commands(admin_commands_part2), inline=False)
