@@ -3615,9 +3615,26 @@ async def reset_calendrier_cmd(interaction: discord.Interaction):
 
     # Supprime le fichier calendrier.json
     reset_calendrier()
+
+    # Supprime également la sauvegarde PostgreSQL pour éviter une restauration au redémarrage
+    remote_deleted = False
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        try:
+            import psycopg2  # type: ignore
+
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM json_backups WHERE filename = %s", ("calendrier.json",))
+                    remote_deleted = cur.rowcount > 0
+                conn.commit()
+        except Exception as e:
+            print(f"[DEBUG] Échec suppression calendrier.json dans PostgreSQL : {e}")
+
     await interaction.followup.send(
         f"> Le calendrier RP a été totalement réinitialisé. Tous les effets de /calendrier sont annulés."
-        + (f" ({deleted_count} message(s) supprimé(s))." if deleted_count else ""),
+        + (f" ({deleted_count} message(s) supprimé(s))." if deleted_count else "")
+        + (" Sauvegarde PostgreSQL nettoyée." if remote_deleted else ""),
         ephemeral=True
     )
 
