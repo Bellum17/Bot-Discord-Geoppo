@@ -68,6 +68,11 @@ IMAGE_URL = "https://zupimages.net/up/21/03/vl8j.png"
 MONNAIE_EMOJI = "<:Monnaie:1412039375063355473>"
 INVISIBLE_CHAR = "⠀"
 
+# === Configuration générale du bot ===
+PRIMARY_GUILD_ID = 1393301496283795640
+ALLOWED_GUILD_IDS = {PRIMARY_GUILD_ID}
+PERMANENT_STATUS_TEXT = "Gestionne les Nations"
+
 # Chemins des fichiers de données
 DATA_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -212,13 +217,14 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Suppression de toutes les commandes distantes puis resynchronisation propre
-        print("Synchronisation globale des commandes slash (tous les serveurs)...")
+        # Suppression de toutes les commandes distantes puis resynchronisation limitée
+        print("Synchronisation des commandes slash sur la guilde autorisée...")
         try:
-            cmds = await self.tree.sync()
-            print(f"Commandes globales synchronisées ({len(cmds)}) : {[c.name for c in cmds]}")
+            guild_obj = discord.Object(id=PRIMARY_GUILD_ID)
+            cmds = await self.tree.sync(guild=guild_obj)
+            print(f"Commandes synchronisées ({len(cmds)}) : {[c.name for c in cmds]}")
         except Exception as e:
-            print(f"Erreur lors de la synchronisation globale : {e}")
+            print(f"Erreur lors de la synchronisation restreinte : {e}")
         
         # Démarrer les tâches planifiées
         auto_save_economy.start()
@@ -229,6 +235,28 @@ class MyBot(commands.Bot):
 # Création de l'instance du bot
 
 bot = MyBot()
+
+
+async def apply_permanent_presence(client: commands.Bot) -> None:
+    """Applique le statut permanent configuré pour le bot."""
+    try:
+        activity = discord.Activity(type=discord.ActivityType.custom, state=PERMANENT_STATUS_TEXT)
+        await client.change_presence(status=discord.Status.online, activity=activity)
+    except Exception as exc:
+        # Discord refuse parfois les activités personnalisées pour les bots ; on journalise pour diagnostic.
+        print(f"[DEBUG] Impossible de définir l'activité personnalisée : {exc}")
+        await client.change_presence(status=discord.Status.online)
+
+
+async def enforce_allowed_guilds(client: commands.Bot) -> None:
+    """Force le bot à rester uniquement sur les guildes autorisées."""
+    for guild in list(client.guilds):
+        if guild.id not in ALLOWED_GUILD_IDS:
+            print(f"[INFO] Guild non autorisée détectée ({guild.name} / {guild.id}), départ...")
+            try:
+                await guild.leave()
+            except Exception as exc:
+                print(f"[WARN] Impossible de quitter la guild {guild.id} : {exc}")
 
 # === COMMANDE POUR ENREGISTRER LES IDS DES MEMBRES ===
 
@@ -247,24 +275,22 @@ async def purge(interaction: discord.Interaction, nombre: int):
     except Exception as e:
         await interaction.followup.send(f"Erreur lors de la suppression : {e}", ephemeral=True)
 
-# Synchronisation forcée des commandes slash sur le serveur de test à chaque démarrage
 @bot.event
-async def on_ready():
-    print(f'Bot connecté en tant que {bot.user.name}')
-    # Définir un statut permanent avec l'emoji et le texte demandé
-    await bot.change_presence(status=discord.Status.online, activity=discord.Activity(type=discord.ActivityType.watching, name="Finalisations en cours"))
-    GUILD_ID = 1393301496283795640
-    guild = bot.get_guild(GUILD_ID)
+async def on_guild_join(guild: discord.Guild):
+    if guild.id not in ALLOWED_GUILD_IDS:
+        print(f"[INFO] Invitation depuis une guild non autorisée ({guild.name} / {guild.id}). Déconnexion immédiate.")
+        try:
+            await guild.leave()
+        except Exception as exc:
+            print(f"[WARN] Impossible de quitter la guild {guild.id} : {exc}")
+        return
+
+    await apply_permanent_presence(bot)
     try:
-        cmds = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-        print(f"Commandes synchronisées sur le serveur {GUILD_ID} ({len(cmds)}) : {[c.name for c in cmds]}")
-    except Exception as e:
-        print(f"Erreur lors de la synchronisation des commandes : {e}")
-    await restore_mutes_on_start()
-    await verify_economy_data(bot)
-    # Met à jour ou crée les salons vocaux de stats
-    if guild:
-        await update_stats_voice_channels(guild)
+        await bot.tree.sync(guild=discord.Object(id=guild.id))
+    except Exception as exc:
+        print(f"[WARN] Échec de synchronisation sur la guild autorisée {guild.id} : {exc}")
+
 
 # Variables globales pour les données
 balances = {}
@@ -897,97 +923,14 @@ async def setlogeconomy(interaction: discord.Interaction, channel: discord.TextC
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.tree.command(name="setstatus", description="Définit le statut du bot (En Ligne, En Direct, Hors-Ligne)")
+@bot.tree.command(name="setstatus", description="Affiche le statut permanent du bot")
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(
-    status="Type de statut à afficher", 
-    message="Message d'activité à afficher (optionnel)",
-    notification="Envoyer une notification dans le salon de status (optionnel)"
-)
-@app_commands.choices(status=[
-    discord.app_commands.Choice(name="En Ligne", value="online"),
-    discord.app_commands.Choice(name="En Direct", value="streaming"),
-    discord.app_commands.Choice(name="Hors Ligne", value="offline"),
-    discord.app_commands.Choice(name="Ne pas déranger", value="dnd")  # <-- Ajout ici
-])
-async def setstatus(interaction: discord.Interaction, status: str, message: str = "Développer le Serveur", notification: bool = False):
-    """Définit le statut du bot et sauvegarde le statut pour le restaurer après redéploiement."""
-    await interaction.response.defer(ephemeral=True)
-    global status_message_id
-    try:
-        current_timestamp = int(time.time())
-        status_data = {"status": status, "message": message}
-        # Sauvegarder le statut dans un fichier pour restauration
-        with open(os.path.join(DATA_DIR, "bot_status.json"), "w") as f:
-            json.dump(status_data, f)
-        # Appliquer le statut
-        if status == "online":
-            await bot.change_presence(activity=discord.Game(name=message), status=discord.Status.online)
-            status_icon = "<:Statuts_EnLigne:1413119886426771496>"
-            status_name = "En Ligne"
-            status_color = 0x57F287
-            fonctionnement = "Normal"
-        elif status == "streaming":
-            streaming_activity = discord.Streaming(name=message, url="https://www.twitch.tv/discord")
-            await bot.change_presence(activity=streaming_activity, status=discord.Status.online)
-            status_icon = "<:Status_Direct:1413119409173561354>"
-            status_name = "En Direct"
-            status_color = 0x593a93
-            fonctionnement = "Normal"
-        elif status == "offline":
-            await bot.change_presence(activity=None, status=discord.Status.invisible)
-            status_icon = "<:Statuts_HorsLigne:1413119891795476622>"
-            status_name = "Hors Ligne"
-            status_color = 0xE74C3C
-            fonctionnement = "Indisponible"
-        elif status == "dnd":
-            await bot.change_presence(activity=discord.Game(name="Modification(s) en cours"), status=discord.Status.dnd)
-            status_icon = "<:Status_NePasDeranger:1414411414570926120>"
-            status_name = "Ne pas déranger"
-            status_color = 0xED4245
-            fonctionnement = "Modification(s) en cours"
-            message = "Modification(s) en cours"
-        else:
-            await interaction.followup.send("> Statut non reconnu. Utilisez En Ligne, En Direct, Hors Ligne ou Ne pas déranger.", ephemeral=True)
-            return
-        log_embed = discord.Embed(
-            description=(
-                f"> **Administrateur:** {interaction.user.mention}\n"
-                f"> **Nouveau statut:** {status_name}\n"
-                f"> **Message d'activité:** {message if message and status != 'offline' else 'Aucun'}{INVISIBLE_CHAR}"
-            ),
-            color=EMBED_COLOR,
-            timestamp=datetime.datetime.now()
-        )
-        await send_log(interaction.guild, embed=log_embed)
-        if notification:
-            status_channel_id = status_channel_data.get(str(interaction.guild.id))
-            if status_channel_id:
-                status_channel = interaction.guild.get_channel(int(status_channel_id))
-                if status_channel:
-                    if status_message_id:
-                        try:
-                            old_message = await status_channel.fetch_message(status_message_id)
-                            await old_message.delete()
-                        except discord.NotFound:
-                            pass
-                        except Exception as e:
-                            print(f"Erreur lors de la suppression de l'ancien message de statut: {e}")
-                    status_embed = discord.Embed(
-                        title=f"{status_icon} | Status : {status_name}",
-                        description=f"> **État actuel:** {fonctionnement}\n"
-                                   f"> **Dernière mise à jour:** <t:{current_timestamp}:R>{INVISIBLE_CHAR}",
-                        color=status_color
-                    )
-                    status_embed.set_image(url=IMAGE_URL)
-                    new_message = await status_channel.send(embed=status_embed)
-                    status_message_id = new_message.id
-                else:
-                    await interaction.followup.send("> Salon de status non trouvé. Veuillez configurer un salon avec /setstatus_channel", ephemeral=True)
-            else:
-                await interaction.followup.send("> Aucun salon de status configuré. Veuillez configurer un salon avec /setstatus_channel", ephemeral=True)
-    except Exception as e:
-        await interaction.followup.send(f"> Erreur lors du changement de statut: {e}", ephemeral=True)
+async def setstatus(interaction: discord.Interaction):
+    await interaction.response.send_message(
+        f"> Le statut du bot est verrouillé sur **{PERMANENT_STATUS_TEXT}**.",
+        ephemeral=True
+    )
+    await apply_permanent_presence(bot)
 
 # Ajouter un fichier JSON pour stocker l'ID du dernier message de statut
 STATUS_MESSAGE_FILE = os.path.join(DATA_DIR, "status_message.json")
@@ -1017,31 +960,6 @@ def save_status_message():
             json.dump({"message_id": status_message_id}, f)
     except Exception as e:
         print(f"Erreur lors de la sauvegarde de l'ID du message de statut: {e}")
-
-# Modifier la fonction on_ready pour inclure l'envoi d'un nouveau message de statut et la suppression de l'ancien
-@bot.event
-async def on_ready():
-    print(f'Bot connecté en tant que {bot.user.name}')
-    # Restaurer le statut du bot après redéploiement
-    try:
-        status_file = os.path.join(DATA_DIR, "bot_status.json")
-        if os.path.exists(status_file):
-            with open(status_file, "r") as f:
-                status_data = json.load(f)
-            status = status_data.get("status", "online")
-            message = status_data.get("message", "Développer le Serveur")
-            if status == "online":
-                await bot.change_presence(activity=discord.Game(name=message), status=discord.Status.online)
-            elif status == "streaming":
-                streaming_activity = discord.Streaming(name=message, url="https://www.twitch.tv/discord")
-                await bot.change_presence(activity=streaming_activity, status=discord.Status.online)
-            elif status == "offline":
-                await bot.change_presence(activity=None, status=discord.Status.invisible)
-            elif status == "dnd":
-                await bot.change_presence(activity=discord.Game(name="Modification(s) en cours"), status=discord.Status.dnd)
-    except Exception as e:
-        print(f"Erreur lors de la restauration du statut du bot: {e}")
-    await restore_mutes_on_start()
 
 # Fonction utilitaire pour convertir les majuscules en caractères spéciaux
 def is_valid_image_url(url):
@@ -3403,21 +3321,37 @@ from discord.ext.tasks import loop
 
 @loop(seconds=600)
 async def update_stats_voice_channels_periodically():
-    GUILD_ID = 1393301496283795640  # Remplace par l'ID de ton serveur si besoin
-    guild = bot.get_guild(GUILD_ID)
+    guild = bot.get_guild(PRIMARY_GUILD_ID)
     if guild:
         print("[DEBUG] Mise à jour périodique des salons vocaux de stats")
         await update_stats_voice_channels(guild)
 
 @bot.event
 async def on_ready():
-    # ...existing code...
+    print(f'Bot connecté en tant que {bot.user.name}')
+    await enforce_allowed_guilds(bot)
+    await apply_permanent_presence(bot)
+
     try:
-        await bot.tree.sync()
-        print("[SYNC] Commandes slash synchronisées !")
-    except Exception as e:
-        print(f"[SYNC ERROR] {e}")
-    update_stats_voice_channels_periodically.start()
+        cmds = await bot.tree.sync(guild=discord.Object(id=PRIMARY_GUILD_ID))
+        print(f"Commandes synchronisées sur le serveur {PRIMARY_GUILD_ID} ({len(cmds)}) : {[c.name for c in cmds]}")
+    except Exception as exc:
+        print(f"[SYNC ERROR] Synchronisation limitée échouée : {exc}")
+
+    await restore_mutes_on_start()
+    await verify_economy_data(bot)
+
+    guild = bot.get_guild(PRIMARY_GUILD_ID)
+    if guild:
+        await update_stats_voice_channels(guild)
+
+    if not update_stats_voice_channels_periodically.is_running():
+        update_stats_voice_channels_periodically.start()
+
+    calendrier_data = load_calendrier()
+    if calendrier_data and calendrier_data["mois_index"] < len(CALENDRIER_MONTHS):
+        if not calendrier_update_task.is_running():
+            calendrier_update_task.start()
 
 # === Mise à jour dynamique des salons vocaux de stats ===
 @bot.event
@@ -3757,15 +3691,6 @@ async def calendrier_update_task():
     if calendrier_data["mois_index"] >= len(CALENDRIER_MONTHS):
         calendrier_update_task.stop()
 
-@bot.event
-async def on_ready():
-    # ...existing code...
-    # Relancer la tâche calendrier si besoin
-    calendrier_data = load_calendrier()
-    if calendrier_data and calendrier_data["mois_index"] < len(CALENDRIER_MONTHS):
-        if not calendrier_update_task.is_running():
-            calendrier_update_task.start()
-            
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
     restore_all_json_from_postgres()
