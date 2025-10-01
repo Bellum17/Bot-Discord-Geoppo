@@ -67,10 +67,10 @@ EMBED_COLOR = 0xefe7c5
 IMAGE_URL = "https://zupimages.net/up/21/03/vl8j.png"
 MONNAIE_EMOJI = "<:Monnaie:1412039375063355473>"
 INVISIBLE_CHAR = "⠀"
+HELP_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1422937730177826827/c4959984-ba58-486b-a7c3-a17b231b80a9.png?ex=68de7d87&is=68dd2c07&hm=78336c03ba0fbcfd847d2e7a4e14307b2ecc964b97be95648fbc2a1a9884da9c&"
 
 # === Configuration générale du bot ===
 PRIMARY_GUILD_ID = 1393301496283795640
-ALLOWED_GUILD_IDS = {PRIMARY_GUILD_ID}
 PERMANENT_STATUS_TEXT = "Gestionne les Nations"
 
 # Chemins des fichiers de données
@@ -217,14 +217,13 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Suppression de toutes les commandes distantes puis resynchronisation limitée
-        print("Synchronisation des commandes slash sur la guilde autorisée...")
+        # Suppression de toutes les commandes distantes puis resynchronisation globale
+        print("Synchronisation globale des commandes slash...")
         try:
-            guild_obj = discord.Object(id=PRIMARY_GUILD_ID)
-            cmds = await self.tree.sync(guild=guild_obj)
-            print(f"Commandes synchronisées ({len(cmds)}) : {[c.name for c in cmds]}")
+            cmds = await self.tree.sync()
+            print(f"Commandes globales synchronisées ({len(cmds)}) : {[c.name for c in cmds]}")
         except Exception as e:
-            print(f"Erreur lors de la synchronisation restreinte : {e}")
+            print(f"Erreur lors de la synchronisation globale : {e}")
         
         # Démarrer les tâches planifiées
         auto_save_economy.start()
@@ -248,16 +247,6 @@ async def apply_permanent_presence(client: commands.Bot) -> None:
         await client.change_presence(status=discord.Status.online)
 
 
-async def enforce_allowed_guilds(client: commands.Bot) -> None:
-    """Force le bot à rester uniquement sur les guildes autorisées."""
-    for guild in list(client.guilds):
-        if guild.id not in ALLOWED_GUILD_IDS:
-            print(f"[INFO] Guild non autorisée détectée ({guild.name} / {guild.id}), départ...")
-            try:
-                await guild.leave()
-            except Exception as exc:
-                print(f"[WARN] Impossible de quitter la guild {guild.id} : {exc}")
-
 # === COMMANDE POUR ENREGISTRER LES IDS DES MEMBRES ===
 
 # === COMMANDE DE SUPPRESSION DE MESSAGES ===
@@ -277,19 +266,12 @@ async def purge(interaction: discord.Interaction, nombre: int):
 
 @bot.event
 async def on_guild_join(guild: discord.Guild):
-    if guild.id not in ALLOWED_GUILD_IDS:
-        print(f"[INFO] Invitation depuis une guild non autorisée ({guild.name} / {guild.id}). Déconnexion immédiate.")
-        try:
-            await guild.leave()
-        except Exception as exc:
-            print(f"[WARN] Impossible de quitter la guild {guild.id} : {exc}")
-        return
-
     await apply_permanent_presence(bot)
     try:
         await bot.tree.sync(guild=discord.Object(id=guild.id))
+        print(f"[INFO] Commandes synchronisées pour la guild {guild.name} ({guild.id})")
     except Exception as exc:
-        print(f"[WARN] Échec de synchronisation sur la guild autorisée {guild.id} : {exc}")
+        print(f"[WARN] Échec de synchronisation sur la guild {guild.id} : {exc}")
 
 
 # Variables globales pour les données
@@ -3329,14 +3311,13 @@ async def update_stats_voice_channels_periodically():
 @bot.event
 async def on_ready():
     print(f'Bot connecté en tant que {bot.user.name}')
-    await enforce_allowed_guilds(bot)
     await apply_permanent_presence(bot)
 
     try:
-        cmds = await bot.tree.sync(guild=discord.Object(id=PRIMARY_GUILD_ID))
-        print(f"Commandes synchronisées sur le serveur {PRIMARY_GUILD_ID} ({len(cmds)}) : {[c.name for c in cmds]}")
+        cmds = await bot.tree.sync()
+        print(f"Commandes synchronisées globalement ({len(cmds)}) : {[c.name for c in cmds]}")
     except Exception as exc:
-        print(f"[SYNC ERROR] Synchronisation limitée échouée : {exc}")
+        print(f"[SYNC ERROR] Synchronisation globale échouée : {exc}")
 
     await restore_mutes_on_start()
     await verify_economy_data(bot)
@@ -3358,14 +3339,15 @@ async def on_ready():
 async def on_member_update(before, after):
     membres_role_id = 1393340583665209514
     joueurs_role_id = 1410289640170328244
+    guild = after.guild
+    if guild is None:
+        return
     before_roles = set(r.id for r in before.roles)
     after_roles = set(r.id for r in after.roles)
     if membres_role_id in before_roles or membres_role_id in after_roles or joueurs_role_id in before_roles or joueurs_role_id in after_roles:
         print(f"[DEBUG] Changement de rôle détecté pour {after.display_name} (avant: {before_roles}, après: {after_roles})")
-        guild = after.guild
-        if guild:
-            print(f"[DEBUG] Appel de update_stats_voice_channels pour guild: {guild.name} ({guild.id})")
-            await update_stats_voice_channels(guild)
+        print(f"[DEBUG] Appel de update_stats_voice_channels pour guild: {guild.name} ({guild.id})")
+        await update_stats_voice_channels(guild)
 
     category_id = 1418006771053887571
     membres_role_id = 1393340583665209514
@@ -3631,7 +3613,7 @@ async def help_command(interaction: discord.Interaction):
         ),
         color=EMBED_COLOR,
     )
-    embed.set_thumbnail(url=IMAGE_URL)
+    embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
     embed.add_field(name="🔐 Commandes Administrateur (1/2)", value=format_commands(admin_commands_part1), inline=False)
     embed.add_field(name="🔐 Commandes Administrateur (2/2)", value=format_commands(admin_commands_part2), inline=False)
     embed.add_field(name="🧭 Commandes Membres", value=format_commands(member_commands), inline=False)
