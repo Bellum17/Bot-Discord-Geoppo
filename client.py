@@ -42,13 +42,14 @@ import atexit
 import signal
 import aiohttp
 import io
+import textwrap
 import re
 import geopandas as gpd
 import numpy as np
 from shapely.ops import unary_union
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-from PIL import Image, ImageDraw # type: ignore
+from PIL import Image, ImageDraw, ImageFont # type: ignore
 from dotenv import load_dotenv
 from discord.ext.tasks import loop
 
@@ -241,10 +242,10 @@ bot = MyBot()
 async def apply_permanent_presence(client: commands.Bot) -> None:
     """Applique le statut permanent configuré pour le bot."""
     try:
-        activity = discord.Activity(type=discord.ActivityType.custom, state=PERMANENT_STATUS_TEXT)
+        activity = discord.CustomActivity(name=PERMANENT_STATUS_TEXT)
         await client.change_presence(status=discord.Status.online, activity=activity)
     except Exception as exc:
-        # Discord refuse parfois les activités personnalisées pour les bots ; on journalise pour diagnostic.
+        # Discord refuse parfois les statuts personnalisés pour les bots ; on journalise pour diagnostic.
         print(f"[DEBUG] Impossible de définir l'activité personnalisée : {exc}")
         await client.change_presence(status=discord.Status.online)
 
@@ -3556,6 +3557,172 @@ async def reset_calendrier_cmd(interaction: discord.Interaction):
         ephemeral=True
     )
 
+async def generate_help_banner(
+    sections: typing.List[typing.Tuple[str, typing.List[typing.Tuple[str, str]]]]
+) -> typing.Optional[io.BytesIO]:
+    """Construit une image composite pour l'en-tête de l'aide (séparateur + bannière + texte)."""
+    try:
+        timeout = aiohttp.ClientTimeout(total=8)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(HELP_HEADER_IMAGE_URL) as resp:
+                resp.raise_for_status()
+                base_bytes = await resp.read()
+        base_image = Image.open(io.BytesIO(base_bytes)).convert("RGBA")
+    except Exception as exc:
+        print(f"[HELP] Impossible de récupérer l'image de base : {exc}")
+        base_image = Image.new("RGBA", (960, 360), (48, 60, 122, 255))
+
+    card_margin = 42
+    card_padding = 40
+    max_inner_width = 980
+    scale_ratio = min(max_inner_width / base_image.width, 1.0)
+    new_size = (
+        max(1, int(base_image.width * scale_ratio)),
+        max(1, int(base_image.height * scale_ratio))
+    )
+    base_image = base_image.resize(new_size, Image.LANCZOS)
+
+    separator_font_path_candidates = [
+        "/System/Library/Fonts/SFNSRounded.ttf",
+        "/System/Library/Fonts/SFNSDisplay.ttf",
+        "/Library/Fonts/Arial Unicode.ttf"
+    ]
+
+    def load_font(size: int) -> ImageFont.FreeTypeFont:
+        for path in separator_font_path_candidates:
+            if os.path.exists(path):
+                try:
+                    return ImageFont.truetype(path, size)
+                except Exception:
+                    continue
+        return ImageFont.load_default()
+
+    separator_font = load_font(34)
+    title_font = load_font(46)
+    body_font = load_font(30)
+
+    def measure(text: str, font: ImageFont.ImageFont) -> typing.Tuple[int, int]:
+        if hasattr(font, "getbbox"):
+            bbox = font.getbbox(text)
+            return bbox[2] - bbox[0], bbox[3] - bbox[1]
+        width, height = font.getsize(text)
+        return width, height
+
+    wrap_width = 60
+    line_spacing = 8
+    section_spacing = 24
+
+    info_blocks = [
+        ("Besoin d'un coup de main ?", title_font, (245, 240, 255), 28),
+        (
+            "Les commandes sont triées selon les autorisations nécessaires. Utilise-les via la barre slash.",
+            body_font,
+            (215, 210, 225),
+            16,
+        ),
+        (
+            "Les sections ci-dessous regroupent tout pour l'administration comme pour les membres.",
+            body_font,
+            (215, 210, 225),
+            16,
+        ),
+        (
+            "Astuce : tape '/' puis les premières lettres de la commande pour la retrouver instantanément.",
+            body_font,
+            (215, 210, 225),
+            section_spacing,
+        ),
+    ]
+
+    section_title_font = load_font(32)
+    bullet_font = body_font
+
+    layout_lines: typing.List[typing.Dict[str, typing.Any]] = []
+
+    def append_text_block(text: str, font: ImageFont.ImageFont, color: typing.Tuple[int, int, int], *, spacing_after: int, wrap: bool = True, bullet: bool = False) -> None:
+        if wrap and font != title_font:
+            wrapper = textwrap.TextWrapper(width=wrap_width, subsequent_indent="    " if bullet else "")
+            lines = wrapper.wrap(text)
+        else:
+            lines = [text]
+        for idx, line in enumerate(lines):
+            spacing = line_spacing if idx < len(lines) - 1 else spacing_after
+            layout_lines.append({
+                "text": line,
+                "font": font,
+                "color": color,
+                "spacing": spacing
+            })
+
+    for text, font, color, spacing_after in info_blocks:
+        append_text_block(text, font, color, spacing_after=spacing_after, wrap=True, bullet=False)
+
+    for title, commands in sections:
+        append_text_block(title, section_title_font, (240, 232, 255), spacing_after=12, wrap=False)
+        for name, description in commands:
+            formatted = f"• {name} — {description}"
+            append_text_block(formatted, bullet_font, (210, 205, 222), spacing_after=10, wrap=True, bullet=True)
+        if layout_lines:
+            layout_lines[-1]["spacing"] += section_spacing
+
+    if layout_lines:
+        layout_lines[-1]["spacing"] = 0
+
+    total_text_height = 0
+    for entry in layout_lines:
+        _, h = measure(entry["text"], entry["font"])
+        total_text_height += h + entry["spacing"]
+
+    _, separator_height = measure(HELP_HEADER_SEPARATOR, separator_font)
+
+    card_width = max(base_image.width + card_padding * 2, max_inner_width + card_padding * 2)
+    card_height = (
+        card_padding * 2
+        + separator_height
+        + 24  # espace après le séparateur
+        + base_image.height
+        + 36  # espace après l'image
+        + total_text_height
+    )
+
+    canvas_width = card_width + card_margin * 2
+    canvas_height = card_height + card_margin * 2
+
+    background_color = (15, 10, 24)
+    card_color = (30, 21, 43)
+    banner = Image.new("RGB", (canvas_width, canvas_height), background_color)
+    draw = ImageDraw.Draw(banner)
+
+    card_rect = (
+        card_margin,
+        card_margin,
+        card_margin + card_width,
+        card_margin + card_height
+    )
+    draw.rounded_rectangle(card_rect, radius=38, fill=card_color)
+
+    sep_width, _ = measure(HELP_HEADER_SEPARATOR, separator_font)
+    sep_x = card_margin + (card_width - sep_width) // 2
+    sep_y = card_margin + 10
+    draw.text((sep_x, sep_y), HELP_HEADER_SEPARATOR, font=separator_font, fill=(210, 205, 220))
+
+    image_x = card_margin + (card_width - base_image.width) // 2
+    image_y = sep_y + separator_height + 24
+    banner.paste(base_image, (image_x, image_y))
+
+    text_y = image_y + base_image.height + 36
+    text_x = card_margin + card_padding
+    for entry in layout_lines:
+        draw.text((text_x, text_y), entry["text"], font=entry["font"], fill=entry["color"])
+        _, h = measure(entry["text"], entry["font"])
+        text_y += h + entry["spacing"]
+
+    output = io.BytesIO()
+    banner.save(output, format="PNG")
+    output.seek(0)
+    return output
+
+
 @bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
 async def help_command(interaction: discord.Interaction):
     admin_commands_part1 = [
@@ -3602,29 +3769,33 @@ async def help_command(interaction: discord.Interaction):
         ("/help", "Affiche cette fenêtre d'aide."),
     ]
 
-    def format_commands(commands):
-        return "\n".join(f"> • `{name}` — {description}" for name, description in commands) or "> • Aucune commande pour le moment."
+    sections_data = [
+        ("Commandes Administrateur (1/2)", admin_commands_part1),
+        ("Commandes Administrateur (2/2)", admin_commands_part2),
+        ("Commandes Membres", member_commands),
+    ]
 
-    header_embed = discord.Embed(color=EMBED_COLOR)
-    header_embed.description = HELP_HEADER_SEPARATOR
-    header_embed.set_image(url=HELP_HEADER_IMAGE_URL)
+    banner_bytes = await generate_help_banner(sections_data)
 
-    content_embed = discord.Embed(
-        description=(
-            "⠀\n"
-            "> ### Besoin d'un coup de main ?\n"
-            "> Les commandes sont triées selon les autorisations nécessaires. Utilise-les via la barre slash.\n"
-            "⠀"
-        ),
-        color=EMBED_COLOR,
-    )
-    content_embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
-    content_embed.add_field(name="🔐 Commandes Administrateur (1/2)", value=format_commands(admin_commands_part1), inline=False)
-    content_embed.add_field(name="🔐 Commandes Administrateur (2/2)", value=format_commands(admin_commands_part2), inline=False)
-    content_embed.add_field(name="🧭 Commandes Membres", value=format_commands(member_commands), inline=False)
-    content_embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
+    embed = discord.Embed(description="\u200b", color=EMBED_COLOR)
+    embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
+    embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
 
-    await interaction.response.send_message(embeds=[header_embed, content_embed], ephemeral=True)
+    if banner_bytes:
+        file = discord.File(banner_bytes, filename="help_header.png")
+        embed.set_image(url="attachment://help_header.png")
+        await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
+    else:
+        embed.set_image(url=HELP_HEADER_IMAGE_URL)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    def format_section(title: str, commands: typing.List[typing.Tuple[str, str]]) -> str:
+        lines = [f"**{title}**"]
+        lines.extend(f"• `{name}` — {description}" for name, description in commands)
+        return "\n".join(lines)
+
+    summary_text = "\n\n".join(format_section(title, cmds) for title, cmds in sections_data)
+    await interaction.followup.send(summary_text, ephemeral=True, suppress_embeds=True)
 
 @loop(minutes=1)
 async def calendrier_update_task():
