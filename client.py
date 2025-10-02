@@ -3336,7 +3336,7 @@ async def on_ready():
         print(f"[SYNC ERROR] Synchronisation globale échouée : {exc}")
 
     await restore_mutes_on_start()
-    await verify_economy_data(bot)
+    verify_economy_data(bot)
 
     guild = bot.get_guild(PRIMARY_GUILD_ID)
     if guild:
