@@ -75,11 +75,11 @@ WELCOME_ROLE_ID = 1393340583665209514
 WELCOME_CHANNEL_ID = 1416882330576097310
 WELCOME_PUBLIC_MESSAGE = (
     "### <:PX_Festif:1423426894019297381> Bienvenue à toi ! {mention}\n"
-    ">▪︎Ce serveur est actuellement en cours de refonte et rouvrira très prochainement, dans les semaines à venir, voire dans les prochains jours. Si tu as besoin de renseignements, le salon <#1393318935692312787> a été mis à jour depuis et le staff reste à ta disposition pour répondre à tes questions. En attendant, nous t’invitons à faire connaissance avec les autres membres et à patienter sereinement jusqu’à la réouverture du rôleplay !"
+    "> ▪︎ Ce serveur est actuellement en cours de refonte et rouvrira très prochainement, dans les semaines à venir, voire dans les prochains jours. Si tu as besoin de renseignements, le salon <#1393318935692312787> a été mis à jour depuis et le staff reste à ta disposition pour répondre à tes questions. En attendant, nous t’invitons à faire connaissance avec les autres membres et à patienter sereinement jusqu’à la réouverture du rôleplay !"
 )
 WELCOME_DM_MESSAGE = (
     "### <:PX_Festif:1423426894019297381> Bienvenue à toi !\n"
-    ">▪︎Ce serveur est actuellement en cours de refonte et rouvrira très prochainement, dans les semaines à venir, voire dans les prochains jours. Si tu as besoin de renseignements, le salon <#1393318935692312787> a été mis à jour depuis et le staff reste à ta disposition pour répondre à tes questions. En attendant, nous t’invitons à faire connaissance avec les autres membres et à patienter sereinement jusqu’à la réouverture du rôleplay !\n\n"
+    "> ▪︎ Ce serveur est actuellement en cours de refonte et rouvrira très prochainement, dans les semaines à venir, voire dans les prochains jours. Si tu as besoin de renseignements, le salon <#1393318935692312787> a été mis à jour depuis et le staff reste à ta disposition pour répondre à tes questions. En attendant, nous t’invitons à faire connaissance avec les autres membres et à patienter sereinement jusqu’à la réouverture du rôleplay !\n\n"
     "-# Envoyé depuis le serveur 𝐏𝐀𝐗 𝐑𝐔𝐈𝐍𝐀𝐄."
 )
 HELP_VIEW_TOP_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1423095868201898055/72de43e34dc04d4fab20473c798afb67.png?ex=68df10ce&is=68ddbf4e&hm=c5e6e9bd6f73f6945f05404d28df207d47156a1ac42acaf66293422bb30bd33d&"
