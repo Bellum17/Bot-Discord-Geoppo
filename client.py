@@ -71,6 +71,17 @@ INVISIBLE_CHAR = "⠀"
 HELP_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1422937730177826827/c4959984-ba58-486b-a7c3-a17b231b80a9.png?ex=68de7d87&is=68dd2c07&hm=78336c03ba0fbcfd847d2e7a4e14307b2ecc964b97be95648fbc2a1a9884da9c&"
 HELP_HEADER_IMAGE_URL = "https://cdn.discordapp.com/attachments/1412872314525192233/1422963949682561096/Capture_decran_2025-10-01_a_17.10.31.png?ex=68de95f2&is=68dd4472&hm=75f6f6e77beb2dc7d09e85cf105a6dbd10570f08794388287ebdcf21e3645f2e&"
 HELP_HEADER_SEPARATOR = "-# ─────────────────────────────"
+WELCOME_ROLE_ID = 1393340583665209514
+WELCOME_CHANNEL_ID = 1416882330576097310
+WELCOME_PUBLIC_MESSAGE = (
+    "### <:PX_Festif:1423426894019297381> Bienvenue à toi ! {mention}\n"
+    ">▪︎Ce serveur est actuellement en cours de refonte et rouvrira très prochainement, dans les semaines à venir, voire dans les prochains jours. Si tu as besoin de renseignements, le salon <#1393318935692312787> a été mis à jour depuis et le staff reste à ta disposition pour répondre à tes questions. En attendant, nous t’invitons à faire connaissance avec les autres membres et à patienter sereinement jusqu’à la réouverture du rôleplay !"
+)
+WELCOME_DM_MESSAGE = (
+    "### <:PX_Festif:1423426894019297381> Bienvenue à toi !\n"
+    ">▪︎Ce serveur est actuellement en cours de refonte et rouvrira très prochainement, dans les semaines à venir, voire dans les prochains jours. Si tu as besoin de renseignements, le salon <#1393318935692312787> a été mis à jour depuis et le staff reste à ta disposition pour répondre à tes questions. En attendant, nous t’invitons à faire connaissance avec les autres membres et à patienter sereinement jusqu’à la réouverture du rôleplay !\n\n"
+    "-# Envoyé depuis le serveur 𝐏𝐀𝐗 𝐑𝐔𝐈𝐍𝐀𝐄."
+)
 HELP_VIEW_TOP_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1423095868201898055/72de43e34dc04d4fab20473c798afb67.png?ex=68df10ce&is=68ddbf4e&hm=c5e6e9bd6f73f6945f05404d28df207d47156a1ac42acaf66293422bb30bd33d&"
 HELP_VIEW_BOTTOM_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1423095868470460496/0e19006685eb40119c16b69826b91c56.png?ex=68df10ce&is=68ddbf4e&hm=9fb6ed54561624910b84ea69eabad8695230219daaa72ad44dbe097f11278023&"
 
@@ -3342,20 +3353,33 @@ async def on_ready():
 # === Mise à jour dynamique des salons vocaux de stats ===
 @bot.event
 async def on_member_update(before, after):
-    membres_role_id = 1393340583665209514
+    membres_role_id = WELCOME_ROLE_ID
     joueurs_role_id = 1410289640170328244
     guild = after.guild
     if guild is None:
         return
     before_roles = set(r.id for r in before.roles)
     after_roles = set(r.id for r in after.roles)
+    if WELCOME_ROLE_ID not in before_roles and WELCOME_ROLE_ID in after_roles:
+        channel = guild.get_channel(WELCOME_CHANNEL_ID)
+        if channel:
+            try:
+                await channel.send(WELCOME_PUBLIC_MESSAGE.format(mention=after.mention))
+            except Exception as exc:
+                print(f"[WARN] Impossible d'envoyer le message de bienvenue public: {exc}")
+        try:
+            await after.send(WELCOME_DM_MESSAGE)
+        except discord.Forbidden:
+            print(f"[WARN] Impossible d'envoyer un DM de bienvenue à {after} (forbidden)")
+        except discord.HTTPException as exc:
+            print(f"[WARN] Échec de l'envoi du DM de bienvenue: {exc}")
     if membres_role_id in before_roles or membres_role_id in after_roles or joueurs_role_id in before_roles or joueurs_role_id in after_roles:
         print(f"[DEBUG] Changement de rôle détecté pour {after.display_name} (avant: {before_roles}, après: {after_roles})")
         print(f"[DEBUG] Appel de update_stats_voice_channels pour guild: {guild.name} ({guild.id})")
         await update_stats_voice_channels(guild)
 
     category_id = 1418006771053887571
-    membres_role_id = 1393340583665209514
+    membres_role_id = WELCOME_ROLE_ID
     joueurs_role_id = 1410289640170328244
     membres_channel_id = 1418018437485166741
     joueurs_channel_id = 1418018438990925864
