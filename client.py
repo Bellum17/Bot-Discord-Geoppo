@@ -71,22 +71,8 @@ INVISIBLE_CHAR = "⠀"
 HELP_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1422937730177826827/c4959984-ba58-486b-a7c3-a17b231b80a9.png?ex=68de7d87&is=68dd2c07&hm=78336c03ba0fbcfd847d2e7a4e14307b2ecc964b97be95648fbc2a1a9884da9c&"
 HELP_HEADER_IMAGE_URL = "https://cdn.discordapp.com/attachments/1412872314525192233/1422963949682561096/Capture_decran_2025-10-01_a_17.10.31.png?ex=68de95f2&is=68dd4472&hm=75f6f6e77beb2dc7d09e85cf105a6dbd10570f08794388287ebdcf21e3645f2e&"
 HELP_HEADER_SEPARATOR = "-# ─────────────────────────────"
-
-FONT_PATH_CANDIDATES = [
-    "/System/Library/Fonts/SFNSRounded.ttf",
-    "/System/Library/Fonts/SFNSDisplay.ttf",
-    "/Library/Fonts/Arial Unicode.ttf"
-]
-
-
-def load_font(size: int) -> ImageFont.FreeTypeFont:
-    for path in FONT_PATH_CANDIDATES:
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                continue
-    return ImageFont.load_default()
+HELP_VIEW_TOP_FILENAME = "72de43e34dc04d4fab20473c798afb67.png"
+HELP_VIEW_BOTTOM_FILENAME = "0e19006685eb40119c16b69826b91c56.png"
 
 # === Configuration générale du bot ===
 PRIMARY_GUILD_ID = 1393301496283795640
@@ -107,7 +93,6 @@ PAYS_LOG_FILE = os.path.join(DATA_DIR, "pays_log_channel.json")
 PAYS_IMAGES_FILE = os.path.join(DATA_DIR, "pays_images.json")
 STATUS_CHANNEL_FILE = os.path.join(DATA_DIR, "status_channel.json")
 MUTE_LOG_FILE = os.path.join(DATA_DIR, "mute_log_channel.json")
-SLASH_HELP_TEMPLATE_FILE = os.path.join(DATA_DIR, "slashhelp.json")
 
 # === XP/LEVEL SYSTEM ===
 LVL_FILE = os.path.join(DATA_DIR, "levels.json")
@@ -3573,63 +3558,6 @@ async def reset_calendrier_cmd(interaction: discord.Interaction):
         + (" Sauvegarde PostgreSQL nettoyée." if remote_deleted else ""),
         ephemeral=True
     )
-
-
-def load_slash_help_template() -> typing.List[typing.Dict[str, typing.Any]]:
-    if not os.path.exists(SLASH_HELP_TEMPLATE_FILE):
-        return []
-    try:
-        with open(SLASH_HELP_TEMPLATE_FILE, "r") as template_file:
-            data = json.load(template_file)
-        if isinstance(data, list):
-            return data
-        return []
-    except Exception as exc:
-        print(f"[HELP] Impossible de charger slashhelp.json : {exc}")
-        return []
-
-
-def generate_help_header_image() -> io.BytesIO:
-    width, height = 960, 280
-    base = Image.new("RGBA", (width, height), (26, 16, 38, 255))
-    draw = ImageDraw.Draw(base)
-
-    top_color = (76, 64, 115)
-    bottom_color = (32, 22, 52)
-    for y in range(height):
-        blend = y / max(1, height - 1)
-        color = tuple(int(top_color[i] * (1 - blend) + bottom_color[i] * blend) for i in range(3))
-        draw.line([(0, y), (width, y)], fill=color)
-
-    title_font = load_font(58)
-    subtitle_font = load_font(30)
-
-    title = "Commandes principales"
-    subtitle = "Toutes les actions disponibles via la barre slash"
-
-    def measure(text: str, font: ImageFont.ImageFont) -> typing.Tuple[int, int]:
-        if hasattr(font, "getbbox"):
-            bbox = font.getbbox(text)
-            return bbox[2] - bbox[0], bbox[3] - bbox[1]
-        return font.getsize(text)
-
-    title_width, title_height = measure(title, title_font)
-    subtitle_width, subtitle_height = measure(subtitle, subtitle_font)
-
-    title_x = (width - title_width) // 2
-    title_y = height // 2 - title_height
-    subtitle_x = (width - subtitle_width) // 2
-    subtitle_y = title_y + title_height + 18
-
-    draw.text((title_x, title_y), title, font=title_font, fill=(242, 238, 255))
-    draw.text((subtitle_x, subtitle_y), subtitle, font=subtitle_font, fill=(210, 205, 225))
-
-    output = io.BytesIO()
-    base.save(output, format="PNG")
-    output.seek(0)
-    return output
-
-
 async def generate_help_banner(
     sections: typing.List[typing.Tuple[str, typing.List[typing.Tuple[str, str]]]]
 ) -> typing.Optional[io.BytesIO]:
@@ -3654,6 +3582,21 @@ async def generate_help_banner(
         max(1, int(base_image.height * scale_ratio))
     )
     base_image = base_image.resize(new_size, Image.LANCZOS)
+
+    separator_font_path_candidates = [
+        "/System/Library/Fonts/SFNSRounded.ttf",
+        "/System/Library/Fonts/SFNSDisplay.ttf",
+        "/Library/Fonts/Arial Unicode.ttf"
+    ]
+
+    def load_font(size: int) -> ImageFont.FreeTypeFont:
+        for path in separator_font_path_candidates:
+            if os.path.exists(path):
+                try:
+                    return ImageFont.truetype(path, size)
+                except Exception:
+                    continue
+        return ImageFont.load_default()
 
     separator_font = load_font(34)
     title_font = load_font(46)
@@ -3781,6 +3724,46 @@ async def generate_help_banner(
     return output
 
 
+async def fetch_image_bytes(url: str) -> typing.Optional[bytes]:
+    try:
+        timeout = aiohttp.ClientTimeout(total=8)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as resp:
+                resp.raise_for_status()
+                return await resp.read()
+    except Exception as exc:
+        print(f"[HELP] Impossible de télécharger l'image {url} : {exc}")
+        return None
+
+
+class HelpComponents(discord.ui.LayoutView):
+    container1 = discord.ui.Container(
+        discord.ui.MediaGallery(
+            discord.MediaGalleryItem(
+                media=f"attachment://{HELP_VIEW_TOP_FILENAME}",
+            ),
+        ),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.TextDisplay(content="⠀\n> /\n⠀"),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.MediaGallery(
+            discord.MediaGalleryItem(
+                media=f"attachment://{HELP_VIEW_BOTTOM_FILENAME}",
+            ),
+        ),
+        accent_colour=discord.Colour(1519957),
+    )
+
+    def __init__(self, content: str):
+        super().__init__()
+        try:
+            text_display = self.container1.children[2]
+            if isinstance(text_display, discord.ui.TextDisplay):
+                text_display.content = content
+        except Exception:
+            pass
+
+
 @bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
 async def help_command(interaction: discord.Interaction):
     admin_commands_part1 = [
@@ -3832,9 +3815,6 @@ async def help_command(interaction: discord.Interaction):
         ("Commandes Administrateur (2/2)", admin_commands_part2),
         ("Commandes Membres", member_commands),
     ]
-
-    template_payload = load_slash_help_template()
-
     def format_section(title: str, commands: typing.List[typing.Tuple[str, str]]) -> str:
         lines = [f"**{title}**"]
         lines.extend(f"• `{name}` — {description}" for name, description in commands)
@@ -3845,49 +3825,28 @@ async def help_command(interaction: discord.Interaction):
     quoted_summary = "\n".join(f"> {line}" if line else ">" for line in summary_lines)
     block_content = f"{INVISIBLE_CHAR}\n{quoted_summary}\n{INVISIBLE_CHAR}"
 
-    if template_payload and isinstance(template_payload[0], dict):
-        for component in template_payload[0].get("components", []):
-            if component.get("type") == 10:
-                component["content"] = block_content
-        try:
-            with open(SLASH_HELP_TEMPLATE_FILE, "w") as template_file:
-                json.dump(template_payload, template_file, indent=4)
-        except Exception as exc:
-            print(f"[HELP] Impossible d'enregistrer slashhelp.json : {exc}")
+    banner_bytes = await generate_help_banner(sections_data)
 
-    accent_color = EMBED_COLOR
-    if template_payload and isinstance(template_payload[0], dict):
-        accent_color = int(template_payload[0].get("accent_color", EMBED_COLOR) or EMBED_COLOR)
+    embed = discord.Embed(description="\u200b", color=EMBED_COLOR)
+    embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
+    embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
 
     files: typing.List[discord.File] = []
-    header_filename = "72de43e34dc04d4fab20473c798afb67.png"
-    header_buffer = generate_help_header_image()
-    header_file = discord.File(header_buffer, filename=header_filename)
-    files.append(header_file)
 
-    banner_filename = "0e19006685eb40119c16b69826b91c56.png"
-    banner_bytes = await generate_help_banner(sections_data)
-    banner_file: typing.Optional[discord.File] = None
+    top_bytes = await fetch_image_bytes(HELP_HEADER_IMAGE_URL)
+    if top_bytes:
+        files.append(discord.File(io.BytesIO(top_bytes), filename=HELP_VIEW_TOP_FILENAME))
+
     if banner_bytes:
-        banner_file = discord.File(banner_bytes, filename=banner_filename)
-        files.append(banner_file)
+        files.append(discord.File(banner_bytes, filename=HELP_VIEW_BOTTOM_FILENAME))
 
-    header_embed = discord.Embed(color=accent_color)
-    header_embed.set_image(url=f"attachment://{header_filename}")
-
-    content_embed = discord.Embed(description=block_content, color=accent_color)
-    content_embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
-    content_embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
-    if banner_file:
-        content_embed.set_image(url=f"attachment://{banner_filename}")
+    if len(files) == 2:
+        view = HelpComponents(block_content)
+        await interaction.response.send_message(embed=embed, view=view, files=files, ephemeral=True)
     else:
-        content_embed.set_image(url=HELP_HEADER_IMAGE_URL)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    await interaction.response.send_message(
-        embeds=[header_embed, content_embed],
-        files=files,
-        ephemeral=True,
-    )
+    await interaction.followup.send(block_content, ephemeral=True, suppress_embeds=True)
 
 @loop(minutes=1)
 async def calendrier_update_task():
