@@ -3830,15 +3830,58 @@ async def help_command(interaction: discord.Interaction):
         ("Commandes Administrateur (2/2)", admin_commands_part2),
         ("Commandes Membres", member_commands),
     ]
-    def format_section(title: str, commands: typing.List[typing.Tuple[str, str]]) -> str:
-        lines = [f"**{title}**"]
-        lines.extend(f"• `{name}` — {description}" for name, description in commands)
-        return "\n".join(lines)
 
-    summary_text = "\n\n".join(format_section(title, cmds) for title, cmds in sections_data)
-    summary_lines = summary_text.splitlines()
-    quoted_summary = "\n".join(f"> {line}" if line else ">" for line in summary_lines)
-    block_content = f"{INVISIBLE_CHAR}\n{quoted_summary}\n{INVISIBLE_CHAR}"
+    def collect_summary_lines() -> typing.List[str]:
+        lines: typing.List[str] = []
+        for title, commands in sections_data:
+            lines.append(f"**{title}**")
+            for name, description in commands:
+                lines.append(f"• `{name}` — {description}")
+            lines.append("")
+        while lines and lines[-1] == "":
+            lines.pop()
+        return lines
+
+    def chunk_lines(lines: typing.List[str], max_chars: int = 1800) -> typing.List[str]:
+        chunks: typing.List[str] = []
+        current: typing.List[str] = []
+        current_length = 0
+        for line in lines:
+            if len(line) > max_chars:
+                if current:
+                    chunks.append("\n".join(current))
+                    current = []
+                    current_length = 0
+                for start in range(0, len(line), max_chars):
+                    chunks.append(line[start:start + max_chars])
+                continue
+
+            addition = len(line) + (1 if current else 0)
+            if current and current_length + addition > max_chars:
+                chunks.append("\n".join(current))
+                current = [line]
+                current_length = len(line)
+            else:
+                if current:
+                    current_length += addition
+                else:
+                    current_length = len(line)
+                current.append(line)
+        if current:
+            chunks.append("\n".join(current))
+        return chunks
+
+    summary_lines = collect_summary_lines()
+    quoted_lines = [f"> {line}" if line else ">" for line in summary_lines]
+    if not quoted_lines:
+        quoted_lines = ["> Aucune commande disponible."]
+
+    chunks = chunk_lines(quoted_lines)
+    if not chunks:
+        chunks = ["> Aucune commande disponible."]
+
+    primary_chunk = chunks[0]
+    block_content = f"{INVISIBLE_CHAR}\n{primary_chunk}\n{INVISIBLE_CHAR}"
 
     banner_bytes = await generate_help_banner(sections_data)
 
@@ -3874,7 +3917,8 @@ async def help_command(interaction: discord.Interaction):
     else:
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    await interaction.followup.send(block_content, ephemeral=True, suppress_embeds=True)
+    for chunk in chunks:
+        await interaction.followup.send(chunk, ephemeral=True, suppress_embeds=True)
 
 @loop(minutes=1)
 async def calendrier_update_task():
