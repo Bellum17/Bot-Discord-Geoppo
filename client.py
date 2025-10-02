@@ -71,20 +71,6 @@ INVISIBLE_CHAR = "⠀"
 HELP_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1422937730177826827/c4959984-ba58-486b-a7c3-a17b231b80a9.png?ex=68de7d87&is=68dd2c07&hm=78336c03ba0fbcfd847d2e7a4e14307b2ecc964b97be95648fbc2a1a9884da9c&"
 HELP_HEADER_IMAGE_URL = "https://cdn.discordapp.com/attachments/1412872314525192233/1422963949682561096/Capture_decran_2025-10-01_a_17.10.31.png?ex=68de95f2&is=68dd4472&hm=75f6f6e77beb2dc7d09e85cf105a6dbd10570f08794388287ebdcf21e3645f2e&"
 HELP_HEADER_SEPARATOR = "-# ─────────────────────────────"
-HELP_VIEW_TOP_FILENAME = "72de43e34dc04d4fab20473c798afb67.png"
-HELP_VIEW_BOTTOM_FILENAME = "0e19006685eb40119c16b69826b91c56.png"
-HAS_LAYOUT_VIEW = all(
-    hasattr(discord.ui, attr)
-    for attr in [
-        "LayoutView",
-        "Container",
-        "MediaGallery",
-        "MediaGalleryItem",
-        "Separator",
-        "SeparatorSpacing",
-        "TextDisplay",
-    ]
-)
 
 # === Configuration générale du bot ===
 PRIMARY_GUILD_ID = 1393301496283795640
@@ -3736,47 +3722,6 @@ async def generate_help_banner(
     return output
 
 
-async def fetch_image_bytes(url: str) -> typing.Optional[bytes]:
-    try:
-        timeout = aiohttp.ClientTimeout(total=8)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url) as resp:
-                resp.raise_for_status()
-                return await resp.read()
-    except Exception as exc:
-        print(f"[HELP] Impossible de télécharger l'image {url} : {exc}")
-        return None
-
-
-if HAS_LAYOUT_VIEW:
-    class HelpComponents(discord.ui.LayoutView):
-        container1 = discord.ui.Container(
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem(
-                    media=f"attachment://{HELP_VIEW_TOP_FILENAME}",
-                ),
-            ),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-            discord.ui.TextDisplay(content="⠀\n> /\n⠀"),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem(
-                    media=f"attachment://{HELP_VIEW_BOTTOM_FILENAME}",
-                ),
-            ),
-            accent_colour=discord.Colour(1519957),
-        )
-
-        def __init__(self, content: str):
-            super().__init__()
-            try:
-                text_display = self.container1.children[2]
-                if isinstance(text_display, discord.ui.TextDisplay):
-                    text_display.content = content
-            except Exception:
-                pass
-else:
-    HelpComponents = typing.cast(typing.Optional[typing.Type[discord.ui.View]], None)
 
 
 @bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
@@ -3831,94 +3776,27 @@ async def help_command(interaction: discord.Interaction):
         ("Commandes Membres", member_commands),
     ]
 
-    def collect_summary_lines() -> typing.List[str]:
-        lines: typing.List[str] = []
-        for title, commands in sections_data:
-            lines.append(f"**{title}**")
-            for name, description in commands:
-                lines.append(f"• `{name}` — {description}")
-            lines.append("")
-        while lines and lines[-1] == "":
-            lines.pop()
-        return lines
-
-    def chunk_lines(lines: typing.List[str], max_chars: int = 1800) -> typing.List[str]:
-        chunks: typing.List[str] = []
-        current: typing.List[str] = []
-        current_length = 0
-        for line in lines:
-            if len(line) > max_chars:
-                if current:
-                    chunks.append("\n".join(current))
-                    current = []
-                    current_length = 0
-                for start in range(0, len(line), max_chars):
-                    chunks.append(line[start:start + max_chars])
-                continue
-
-            addition = len(line) + (1 if current else 0)
-            if current and current_length + addition > max_chars:
-                chunks.append("\n".join(current))
-                current = [line]
-                current_length = len(line)
-            else:
-                if current:
-                    current_length += addition
-                else:
-                    current_length = len(line)
-                current.append(line)
-        if current:
-            chunks.append("\n".join(current))
-        return chunks
-
-    summary_lines = collect_summary_lines()
-    quoted_lines = [f"> {line}" if line else ">" for line in summary_lines]
-    if not quoted_lines:
-        quoted_lines = ["> Aucune commande disponible."]
-
-    chunks = chunk_lines(quoted_lines)
-    if not chunks:
-        chunks = ["> Aucune commande disponible."]
-
-    primary_chunk = chunks[0]
-    block_content = f"{INVISIBLE_CHAR}\n{primary_chunk}\n{INVISIBLE_CHAR}"
-
     banner_bytes = await generate_help_banner(sections_data)
 
     embed = discord.Embed(description="\u200b", color=EMBED_COLOR)
     embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
     embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
 
-    files: typing.List[discord.File] = []
-    use_view = HAS_LAYOUT_VIEW
-
-    top_bytes: typing.Optional[bytes] = None
-    if use_view:
-        top_bytes = await fetch_image_bytes(HELP_HEADER_IMAGE_URL)
-        if top_bytes:
-            files.append(discord.File(io.BytesIO(top_bytes), filename=HELP_VIEW_TOP_FILENAME))
-        else:
-            use_view = False
-
     if banner_bytes:
-        banner_attachment = discord.File(banner_bytes, filename=HELP_VIEW_BOTTOM_FILENAME if use_view else "help_header.png")
-        files.append(banner_attachment)
-        if not use_view:
-            embed.set_image(url="attachment://help_header.png")
-
-    if not banner_bytes:
-        embed.set_image(url=HELP_HEADER_IMAGE_URL)
-
-    if use_view and len(files) >= 2 and HelpComponents is not None:
-        view = HelpComponents(block_content)  # type: ignore[call-arg]
-        await interaction.response.send_message(embed=embed, view=view, files=files, ephemeral=True)
-    elif files:
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        file = discord.File(banner_bytes, filename="help_header.png")
+        embed.set_image(url="attachment://help_header.png")
+        await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
     else:
+        embed.set_image(url=HELP_HEADER_IMAGE_URL)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    for chunk in chunks:
-        await interaction.followup.send(chunk, ephemeral=True, suppress_embeds=True)
+    def format_section(title: str, commands: typing.List[typing.Tuple[str, str]]) -> str:
+        lines = [f"**{title}**"]
+        lines.extend(f"• `{name}` — {description}" for name, description in commands)
+        return "\n".join(lines)
+
+    summary_text = "\n\n".join(format_section(title, cmds) for title, cmds in sections_data)
+    await interaction.followup.send(summary_text, ephemeral=True, suppress_embeds=True)
 
 @loop(minutes=1)
 async def calendrier_update_task():
