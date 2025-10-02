@@ -73,6 +73,18 @@ HELP_HEADER_IMAGE_URL = "https://cdn.discordapp.com/attachments/1412872314525192
 HELP_HEADER_SEPARATOR = "-# ─────────────────────────────"
 HELP_VIEW_TOP_FILENAME = "72de43e34dc04d4fab20473c798afb67.png"
 HELP_VIEW_BOTTOM_FILENAME = "0e19006685eb40119c16b69826b91c56.png"
+HAS_LAYOUT_VIEW = all(
+    hasattr(discord.ui, attr)
+    for attr in [
+        "LayoutView",
+        "Container",
+        "MediaGallery",
+        "MediaGalleryItem",
+        "Separator",
+        "SeparatorSpacing",
+        "TextDisplay",
+    ]
+)
 
 # === Configuration générale du bot ===
 PRIMARY_GUILD_ID = 1393301496283795640
@@ -3736,32 +3748,35 @@ async def fetch_image_bytes(url: str) -> typing.Optional[bytes]:
         return None
 
 
-class HelpComponents(discord.ui.LayoutView):
-    container1 = discord.ui.Container(
-        discord.ui.MediaGallery(
-            discord.MediaGalleryItem(
-                media=f"attachment://{HELP_VIEW_TOP_FILENAME}",
+if HAS_LAYOUT_VIEW:
+    class HelpComponents(discord.ui.LayoutView):
+        container1 = discord.ui.Container(
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem(
+                    media=f"attachment://{HELP_VIEW_TOP_FILENAME}",
+                ),
             ),
-        ),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-        discord.ui.TextDisplay(content="⠀\n> /\n⠀"),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-        discord.ui.MediaGallery(
-            discord.MediaGalleryItem(
-                media=f"attachment://{HELP_VIEW_BOTTOM_FILENAME}",
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.TextDisplay(content="⠀\n> /\n⠀"),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem(
+                    media=f"attachment://{HELP_VIEW_BOTTOM_FILENAME}",
+                ),
             ),
-        ),
-        accent_colour=discord.Colour(1519957),
-    )
+            accent_colour=discord.Colour(1519957),
+        )
 
-    def __init__(self, content: str):
-        super().__init__()
-        try:
-            text_display = self.container1.children[2]
-            if isinstance(text_display, discord.ui.TextDisplay):
-                text_display.content = content
-        except Exception:
-            pass
+        def __init__(self, content: str):
+            super().__init__()
+            try:
+                text_display = self.container1.children[2]
+                if isinstance(text_display, discord.ui.TextDisplay):
+                    text_display.content = content
+            except Exception:
+                pass
+else:
+    HelpComponents = typing.cast(typing.Optional[typing.Type[discord.ui.View]], None)
 
 
 @bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
@@ -3832,17 +3847,30 @@ async def help_command(interaction: discord.Interaction):
     embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
 
     files: typing.List[discord.File] = []
+    use_view = HAS_LAYOUT_VIEW
 
-    top_bytes = await fetch_image_bytes(HELP_HEADER_IMAGE_URL)
-    if top_bytes:
-        files.append(discord.File(io.BytesIO(top_bytes), filename=HELP_VIEW_TOP_FILENAME))
+    top_bytes: typing.Optional[bytes] = None
+    if use_view:
+        top_bytes = await fetch_image_bytes(HELP_HEADER_IMAGE_URL)
+        if top_bytes:
+            files.append(discord.File(io.BytesIO(top_bytes), filename=HELP_VIEW_TOP_FILENAME))
+        else:
+            use_view = False
 
     if banner_bytes:
-        files.append(discord.File(banner_bytes, filename=HELP_VIEW_BOTTOM_FILENAME))
+        banner_attachment = discord.File(banner_bytes, filename=HELP_VIEW_BOTTOM_FILENAME if use_view else "help_header.png")
+        files.append(banner_attachment)
+        if not use_view:
+            embed.set_image(url="attachment://help_header.png")
 
-    if len(files) == 2:
-        view = HelpComponents(block_content)
+    if not banner_bytes:
+        embed.set_image(url=HELP_HEADER_IMAGE_URL)
+
+    if use_view and len(files) >= 2 and HelpComponents is not None:
+        view = HelpComponents(block_content)  # type: ignore[call-arg]
         await interaction.response.send_message(embed=embed, view=view, files=files, ephemeral=True)
+    elif files:
+        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
     else:
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
