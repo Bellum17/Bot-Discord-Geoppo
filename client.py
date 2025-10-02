@@ -71,6 +71,8 @@ INVISIBLE_CHAR = "⠀"
 HELP_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1422937730177826827/c4959984-ba58-486b-a7c3-a17b231b80a9.png?ex=68de7d87&is=68dd2c07&hm=78336c03ba0fbcfd847d2e7a4e14307b2ecc964b97be95648fbc2a1a9884da9c&"
 HELP_HEADER_IMAGE_URL = "https://cdn.discordapp.com/attachments/1412872314525192233/1422963949682561096/Capture_decran_2025-10-01_a_17.10.31.png?ex=68de95f2&is=68dd4472&hm=75f6f6e77beb2dc7d09e85cf105a6dbd10570f08794388287ebdcf21e3645f2e&"
 HELP_HEADER_SEPARATOR = "-# ─────────────────────────────"
+HELP_VIEW_TOP_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1423095868201898055/72de43e34dc04d4fab20473c798afb67.png?ex=68df10ce&is=68ddbf4e&hm=c5e6e9bd6f73f6945f05404d28df207d47156a1ac42acaf66293422bb30bd33d&"
+HELP_VIEW_BOTTOM_URL = "https://cdn.discordapp.com/attachments/1411865291041931327/1423095868470460496/0e19006685eb40119c16b69826b91c56.png?ex=68df10ce&is=68ddbf4e&hm=9fb6ed54561624910b84ea69eabad8695230219daaa72ad44dbe097f11278023&"
 
 # === Configuration générale du bot ===
 PRIMARY_GUILD_ID = 1393301496283795640
@@ -3724,6 +3726,51 @@ async def generate_help_banner(
 
 
 
+HAS_ADVANCED_HELP_VIEW = all(
+    hasattr(discord.ui, attr)
+    for attr in (
+        "LayoutView",
+        "Container",
+        "MediaGallery",
+        "MediaGalleryItem",
+        "Separator",
+        "SeparatorSpacing",
+        "TextDisplay",
+    )
+)
+
+
+if HAS_ADVANCED_HELP_VIEW:
+    class Components(discord.ui.LayoutView):
+        container1 = discord.ui.Container(
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem(
+                    media=HELP_VIEW_TOP_URL,
+                ),
+            ),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.TextDisplay(content="⠀\n> /\n⠀"),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem(
+                    media=HELP_VIEW_BOTTOM_URL,
+                ),
+            ),
+            accent_colour=discord.Colour(1519957),
+        )
+
+        def __init__(self, content: str) -> None:
+            super().__init__()
+            try:
+                text_display = self.container1.children[2]
+                if isinstance(text_display, discord.ui.TextDisplay):
+                    text_display.content = content
+            except Exception:
+                pass
+else:
+    Components = None  # type: ignore[assignment]
+
+
 @bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
 async def help_command(interaction: discord.Interaction):
     admin_commands_part1 = [
@@ -3776,27 +3823,39 @@ async def help_command(interaction: discord.Interaction):
         ("Commandes Membres", member_commands),
     ]
 
-    banner_bytes = await generate_help_banner(sections_data)
-
-    embed = discord.Embed(description="\u200b", color=EMBED_COLOR)
+    embed = discord.Embed(
+        title="Centre d'aide",
+        description=(
+            "Toutes les commandes sont disponibles via la barre slash. "
+            "Parcours les sections ci-dessous pour trouver celle qui t'intéresse."
+        ),
+        color=EMBED_COLOR,
+    )
     embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
     embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
 
-    if banner_bytes:
-        file = discord.File(banner_bytes, filename="help_header.png")
-        embed.set_image(url="attachment://help_header.png")
-        await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
-    else:
-        embed.set_image(url=HELP_HEADER_IMAGE_URL)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+    for title, commands in sections_data:
+        field_lines = [f"`{name}` — {description}" for name, description in commands]
+        embed.add_field(name=title, value="\n".join(field_lines), inline=False)
 
-    def format_section(title: str, commands: typing.List[typing.Tuple[str, str]]) -> str:
-        lines = [f"**{title}**"]
-        lines.extend(f"• `{name}` — {description}" for name, description in commands)
-        return "\n".join(lines)
+    summary_lines: typing.List[str] = []
+    for title, commands in sections_data:
+        summary_lines.append(f"**{title}**")
+        summary_lines.extend(f"`{name}` — {description}" for name, description in commands)
+        summary_lines.append("")
+    while summary_lines and not summary_lines[-1]:
+        summary_lines.pop()
 
-    summary_text = "\n\n".join(format_section(title, cmds) for title, cmds in sections_data)
-    await interaction.followup.send(summary_text, ephemeral=True, suppress_embeds=True)
+    condensed_summary = "\n".join(summary_lines)
+    if len(condensed_summary) > 1800:
+        condensed_summary = condensed_summary[:1797] + "…"
+    block_content = f"⠀\n> " + "\n> ".join(condensed_summary.splitlines()) + "\n⠀"
+
+    response_kwargs: dict[str, typing.Any] = {"embed": embed, "ephemeral": True}
+    if Components is not None and HAS_ADVANCED_HELP_VIEW:
+        response_kwargs["view"] = Components(block_content)  # type: ignore[call-arg]
+
+    await interaction.response.send_message(**response_kwargs)
 
 @loop(minutes=1)
 async def calendrier_update_task():
