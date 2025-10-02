@@ -1,0 +1,47 @@
+[
+    {
+        "type": 17,
+        "accent_color": 1519957,
+        "spoiler": false,
+        "components": [
+            {
+                "type": 12,
+                "items": [
+                    {
+                        "media": {
+                            "url": "attachment://72de43e34dc04d4fab20473c798afb67.png"
+                        },
+                        "description": null,
+                        "spoiler": false
+                    }
+                ]
+            },
+            {
+                "type": 14,
+                "divider": true,
+                "spacing": 1
+            },
+            {
+                "type": 10,
+                "content": "\u2800\n> /\n\u2800"
+            },
+            {
+                "type": 14,
+                "divider": true,
+                "spacing": 1
+            },
+            {
+                "type": 12,
+                "items": [
+                    {
+                        "media": {
+                            "url": "attachment://0e19006685eb40119c16b69826b91c56.png"
+                        },
+                        "description": null,
+                        "spoiler": false
+                    }
+                ]
+            }
+        ]
+    }
+]
