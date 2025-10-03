@@ -1958,14 +1958,22 @@ async def balance(interaction: discord.Interaction, role: discord.Role = None):
     # Calcul de la dette totale (somme des emprunts avec taux)
     dette_totale = 0
     for emprunt in loans:
-        if emprunt.get("role_id") == role_id:
+        # Vérifier si l'emprunt concerne ce rôle/pays
+        emprunt_role_id = emprunt.get("role_id")
+        if emprunt_role_id == role_id:
             principal = emprunt.get("somme", 0)
             taux = emprunt.get("taux", 0)
             dette_totale += int(principal * (1 + taux / 100))
+            print(f"[DEBUG] Emprunt trouvé pour {role_id}: principal={principal}, taux={taux}, dette={int(principal * (1 + taux / 100))}")
+    
+    print(f"[DEBUG] Dette totale calculée pour {role_id}: {dette_totale}")
+    print(f"[DEBUG] PIB pour {role_id}: {pib}")
+    
     # Pourcentage dette/PIB
     pourcentage_pib = 0
     if pib and pib > 0:
         pourcentage_pib = round((dette_totale / pib) * 100, 2)
+        print(f"[DEBUG] Pourcentage dette/PIB: {pourcentage_pib}%")
     # Texte formaté
     texte = (
         "⠀\n"
@@ -3030,10 +3038,10 @@ async def classement_lvl(interaction: discord.Interaction):
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
     somme="Montant à emprunter",
-    taux="Taux d'intérêt (%)",
-    duree="Durée de l'emprunt (jours)",
-    nombre_paiement="Nombre de paiements à effectuer (facultatif)",
-    role="Rôle à débiter (optionnel)"
+    taux="Taux d'intérêt (%) - détermine la dette totale",
+    duree="Durée supposée de l'emprunt (informatif seulement, pas de calcul automatique)",
+    nombre_paiement="Nombre de paiements prévus (informatif seulement)",
+    role="Rôle (pays) à débiter - si non spécifié, débit de la Banque centrale"
 )
 async def creer_emprunt(
     interaction: discord.Interaction,
@@ -3044,27 +3052,26 @@ async def creer_emprunt(
     role: discord.Role = None
 ):
     await interaction.response.defer(ephemeral=True)
+    
     demandeur_id = str(interaction.user.id)
     role_id = str(role.id) if role else None
     banque_centrale_id = "BOT"
+    
     # Vérification des montants
-    if somme <= 0 or taux < 0 or duree <= 0:
-        await interaction.followup.send("> Paramètres invalides.", ephemeral=True)
+    if somme <= 0 or taux < 0:
+        await interaction.followup.send("> Paramètres invalides. Le montant doit être positif et le taux non négatif.", ephemeral=True)
         return
     # Vérification du PIB si le demandeur est un pays
     pib = None
     if role:
-        # On suppose que le PIB est stocké dans pays_images ou balances ou autre structure, à adapter selon ta logique
-        # Ici, on cherche dans balances, mais il faudrait une vraie structure pays avec le PIB
-        # Exemple : pays_pib = {role_id: pib}
-        # Pour l'exemple, on utilise balances, à adapter !
-        if str(role.id) in balances:
-            # PIB stocké dans balances ? À adapter !
-            pib = balances.get(str(role.id), None)
-        # Si tu as une vraie structure pays, remplace cette logique
+        # Récupérer le PIB depuis pib_data
+        pib_data = load_pib()
+        pib_info = pib_data.get(str(role.id), {})
+        pib = pib_info.get("pib", None)
+        
         # Si le PIB est trouvé et la somme dépasse 50% du PIB, erreur
         if pib and somme > 0.5 * pib:
-            await interaction.followup.send(f"> Erreur : L'emprunt ({somme}) dépasse 50% du PIB du pays ({pib}). Emprunt refusé pour raison de stabilité économique !", ephemeral=True)
+            await interaction.followup.send(f"> Erreur : L'emprunt ({format_number(somme)}) dépasse 50% du PIB du pays ({format_number(pib)}). Emprunt refusé pour raison de stabilité économique !", ephemeral=True)
             return
     # Débit du rôle ou Banque centrale
     if role:
@@ -3090,6 +3097,10 @@ async def creer_emprunt(
     loans.append(emprunt)
     save_loans(loans)
     save_balances(balances)
+    
+    print(f"[DEBUG] Emprunt créé: demandeur={demandeur_id}, role_id={role_id}, somme={somme}, taux={taux}")
+    print(f"[DEBUG] Total emprunts actifs: {len(loans)}")
+    
     # Log de la transaction
     log_transaction(
         from_id=role_id if role else banque_centrale_id,
@@ -3104,21 +3115,37 @@ async def creer_emprunt(
         title="💸 | Création d'emprunt",
         description=(
             f"> **Demandeur :** {interaction.user.mention}\n"
-            f"> **Montant :** {somme}\n"
+            f"> **Montant :** {format_number(somme)} {MONNAIE_EMOJI}\n"
             f"> **Taux :** {taux}%\n"
-            f"> **Durée :** {duree}\n"
-            f"> **Nombre de paiements :** {nombre_paiement if nombre_paiement else 'Non défini'}\n"
+            f"> **Durée prévue :** {duree} jours (informatif)\n"
+            f"> **Nombre de paiements prévus :** {nombre_paiement if nombre_paiement else 'Non défini'}\n"
             f"> **Débiteur :** {debiteur}{INVISIBLE_CHAR}"
         ),
         color=EMBED_COLOR,
         timestamp=datetime.datetime.now()
     )
     await send_log(interaction.guild, embed=embed)
+    
     # Log dans le salon staff
     staff_channel_id = 1412876030980391063
     staff_channel = interaction.guild.get_channel(staff_channel_id)
     if staff_channel:
         await staff_channel.send(embed=embed)
+    
+    # Réponse à l'utilisateur
+    confirmation_embed = discord.Embed(
+        title="✅ | Emprunt créé avec succès",
+        description=(
+            f"> **Montant accordé :** {format_number(somme)} {MONNAIE_EMOJI}\n"
+            f"> **Taux d'intérêt :** {taux}%\n"
+            f"> **Durée prévue :** {duree} jours (informatif)\n"
+            f"> **Montant total à rembourser :** {format_number(int(somme * (1 + taux / 100)))} {MONNAIE_EMOJI}\n"
+            f"> **Source :** {debiteur}\n"
+            f"> ⚠️ **Note :** La durée est purement informative, aucun remboursement automatique."
+        ),
+        color=0x00FF00
+    )
+    await interaction.followup.send(embed=confirmation_embed, ephemeral=True)
 
 
 # Commande /liste_emprunt : affiche la liste des emprunts du joueur avec pagination
