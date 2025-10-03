@@ -459,8 +459,7 @@ def save_loans(loans_data):
 def load_pib():
     """Charge les données du PIB."""
     if not os.path.exists(PIB_FILE):
-        with open(PIB_FILE, "w") as f:
-            json.dump({}, f)
+        return {}  # Ne crée pas le fichier, retourne juste un dict vide
     try:
         with open(PIB_FILE, "r") as f:
             return json.load(f)
@@ -471,8 +470,15 @@ def load_pib():
 def save_pib(pib_data):
     """Sauvegarde les données du PIB et synchronise avec PostgreSQL."""
     try:
-        with open(PIB_FILE, "w") as f:
-            json.dump(pib_data, f)
+        # Si le dictionnaire est vide, supprimer le fichier
+        if not pib_data:
+            if os.path.exists(PIB_FILE):
+                os.remove(PIB_FILE)
+                print("Fichier pib.json supprimé car aucun pays n'a de PIB.")
+        else:
+            # Créer le fichier seulement s'il y a des données
+            with open(PIB_FILE, "w") as f:
+                json.dump(pib_data, f, indent=2)
         save_all_json_to_postgres()
     except Exception as e:
         print(f"Erreur lors de la sauvegarde du PIB: {e}")
@@ -1171,6 +1177,10 @@ async def creer_pays(
         print(f"[DEBUG] Enregistrement du budget pour le pays {role.id} : {budget}")
         balances[str(role.id)] = budget
         save_balances(balances)
+        
+        # Initialisation du PIB
+        pib_data = load_pib()
+        pib_data[str(role.id)] = {"pib": pib}
 
         # Positionner le rôle pays juste en dessous du rôle de continent
         try:
@@ -1253,17 +1263,9 @@ async def creer_pays(
         except Exception as e:
             print(f"[ERROR] Enregistrement image pays : {e}")
 
-        # Initialisation du personnel
+        # Initialisation du PIB (déjà fait)
         try:
-            print("[DEBUG] Initialisation du personnel...")
-            personnel[str(role.id)] = {
-                "policiers": 0,
-                "soldats_actifs": 0,
-                "soldats_genie": 0,
-                "soldats_reservistes": 0,
-                "forces_speciales": 0,
-                "agents_secrets": 0
-            }
+            print("[DEBUG] Initialisation du PIB...")
         except Exception as e:
             print(f"[ERROR] Initialisation personnel : {e}")
 
@@ -1271,7 +1273,7 @@ async def creer_pays(
         try:
             print("[DEBUG] Sauvegarde des données...")
             save_balances(balances)
-            save_pib(personnel)
+            save_pib(pib_data)
             save_pays_images(pays_images)
             save_all_json_to_postgres()
         except Exception as e:
@@ -1502,17 +1504,9 @@ async def creer_pays(
         except Exception as e:
             print(f"[ERROR] Enregistrement image pays : {e}")
 
-        # Initialisation du personnel
+        # Initialisation du PIB (déjà fait)
         try:
-            print("[DEBUG] Initialisation du personnel...")
-            personnel[str(role.id)] = {
-                "policiers": 0,
-                "soldats_actifs": 0,
-                "soldats_genie": 0,
-                "soldats_reservistes": 0,
-                "forces_speciales": 0,
-                "agents_secrets": 0
-            }
+            print("[DEBUG] Initialisation du PIB...")
         except Exception as e:
             print(f"[ERROR] Initialisation personnel : {e}")
 
@@ -1520,7 +1514,7 @@ async def creer_pays(
         try:
             print("[DEBUG] Sauvegarde des données...")
             save_balances(balances)
-            save_pib(personnel)
+            save_pib(pib_data)
             save_pays_images(pays_images)
             save_all_json_to_postgres()
         except Exception as e:
@@ -1890,10 +1884,10 @@ async def reset_economie(interaction: discord.Interaction):
             await interaction2.response.send_message("Vous n'êtes pas autorisé à confirmer cette action.", ephemeral=True)
             return
         # Vider les variables en mémoire
-        global balances, loans, personnel
+        global balances, loans
         balances.clear()
         loans.clear()
-        personnel.clear()
+        # personnel supprimé
         # Sauvegarder les fichiers vides
         for file_path, empty_value in [
             (BALANCE_FILE, {}),
@@ -1933,7 +1927,7 @@ async def reset_economie(interaction: discord.Interaction):
     cancel_button.callback = cancel_callback
 
     await interaction.followup.send(
-        "⚠️ Cette action va supprimer toutes les données économiques (balances, prêts, transactions, personnel). Confirmez-vous ?",
+        "⚠️ Cette action va supprimer toutes les données économiques (balances, prêts, transactions). Confirmez-vous ?",
         view=confirm_view,
         ephemeral=True
     )
@@ -2163,6 +2157,13 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
         if str(pays.id) in balances:
             balances.pop(str(pays.id))
             save_balances(balances)
+            
+        # Suppression du PIB associé au rôle du pays
+        pib_data = load_pib()
+        if str(pays.id) in pib_data:
+            pib_data.pop(str(pays.id))
+            save_pib(pib_data)
+            
             # Suppression dans PostgreSQL
             try:
                 import psycopg2, os
@@ -2460,7 +2461,7 @@ def check_duplicate_json_files():
     """Vérifie s'il existe des fichiers JSON en double dans le projet."""
     json_files = [
         "balances.json", "log_channel.json", "message_log_channel.json", 
-        "loans.json", "personnel.json", "balances_backup.json",
+        "loans.json", "balances_backup.json",
         "transactions.json", "pays_log_channel.json", "pays_images.json"
     ]
     
