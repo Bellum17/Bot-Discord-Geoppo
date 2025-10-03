@@ -97,7 +97,7 @@ BALANCE_FILE = os.path.join(DATA_DIR, "balances.json")
 LOG_FILE = os.path.join(DATA_DIR, "log_channel.json")
 MESSAGE_LOG_FILE = os.path.join(DATA_DIR, "message_log_channel.json")
 LOANS_FILE = os.path.join(DATA_DIR, "loans.json")
-PERSONNEL_FILE = os.path.join(DATA_DIR, "personnel.json")
+PIB_FILE = os.path.join(DATA_DIR, "pib.json")
 BALANCE_BACKUP_FILE = os.path.join(DATA_DIR, "balances_backup.json")
 TRANSACTION_LOG_FILE = os.path.join(DATA_DIR, "transactions.json")
 PAYS_LOG_FILE = os.path.join(DATA_DIR, "pays_log_channel.json")
@@ -325,7 +325,8 @@ def load_all_data():
     log_channel_data.update(load_log_channel())
     message_log_channel_data.update(load_message_log_channel())
     loans.extend(load_loans())
-    personnel.update(load_personnel())
+    pib_data = load_pib()
+    personnel.update(pib_data)
     pays_log_channel_data.update(load_pays_log_channel())
     pays_images.update(load_pays_images())
     status_channel_data.update(load_status_channel())
@@ -481,26 +482,26 @@ def save_loans(loans_data):
     except Exception as e:
         print(f"Erreur lors de la sauvegarde des prêts: {e}")
 
-def load_personnel():
-    """Charge les données du personnel."""
-    if not os.path.exists(PERSONNEL_FILE):
-        with open(PERSONNEL_FILE, "w") as f:
+def load_pib():
+    """Charge les données du PIB."""
+    if not os.path.exists(PIB_FILE):
+        with open(PIB_FILE, "w") as f:
             json.dump({}, f)
     try:
-        with open(PERSONNEL_FILE, "r") as f:
+        with open(PIB_FILE, "r") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Erreur lors du chargement du personnel: {e}")
+        print(f"Erreur lors du chargement du PIB: {e}")
         return {}
 
-def save_personnel(personnel_data):
-    """Sauvegarde les données du personnel et synchronise avec PostgreSQL."""
+def save_pib(pib_data):
+    """Sauvegarde les données du PIB et synchronise avec PostgreSQL."""
     try:
-        with open(PERSONNEL_FILE, "w") as f:
-            json.dump(personnel_data, f)
+        with open(PIB_FILE, "w") as f:
+            json.dump(pib_data, f)
         save_all_json_to_postgres()
     except Exception as e:
-        print(f"Erreur lors de la sauvegarde du personnel: {e}")
+        print(f"Erreur lors de la sauvegarde du PIB: {e}")
 
 def load_pays_log_channel():
     """Charge les données du canal de log des pays."""
@@ -1329,7 +1330,7 @@ async def creer_pays(
         try:
             print("[DEBUG] Sauvegarde des données...")
             save_balances(balances)
-            save_personnel(personnel)
+            save_pib(personnel)
             save_pays_images(pays_images)
             save_all_json_to_postgres()
         except Exception as e:
@@ -1578,7 +1579,7 @@ async def creer_pays(
         try:
             print("[DEBUG] Sauvegarde des données...")
             save_balances(balances)
-            save_personnel(personnel)
+            save_pib(personnel)
             save_pays_images(pays_images)
             save_all_json_to_postgres()
         except Exception as e:
@@ -1673,7 +1674,7 @@ async def creer_pays(
         
         # Sauvegarder toutes les données
         save_balances(balances)
-        save_personnel(personnel)
+        save_pib(personnel)
         save_pays_images(pays_images)
         save_all_json_to_postgres()
         
@@ -1690,7 +1691,7 @@ async def creer_pays(
         )
         embed.set_image(url=pays_image)
         await interaction.followup.send(embed=embed)
-        
+    
         # Message de bienvenue
         welcome_embed = discord.Embed(
             title=f"{emoji_message} | Bienvenue dans votre pays !",
@@ -1705,7 +1706,7 @@ async def creer_pays(
         )
         welcome_embed.set_image(url=pays_image)
         await channel.send(embed=welcome_embed)
-        
+    
         # Log de l'action
         log_embed = discord.Embed(
             title=f"🏛️ | Création de pays",
@@ -1720,7 +1721,7 @@ async def creer_pays(
             timestamp=datetime.datetime.now()
         )
         await send_log(interaction.guild, embed=log_embed)
-        
+    
         # Envoyer un log détaillé dans le canal de log des pays
         pays_log_embed = discord.Embed(
             title=f"🏛️ | Nouveau Pays : {nom}",
@@ -1737,20 +1738,20 @@ async def creer_pays(
                 f"> **Créé par :** {interaction.user.mention}",
             inline=False
         )
-        
+    
         pays_log_embed.add_field(
             name="Gouvernement",
             value=f"> **Dirigeant :** {dirigeant.mention}\n"
                 f"> **Budget alloué :** {format_number(budget)} {MONNAIE_EMOJI}",
             inline=False
         )
-        
+    
         pays_log_embed.add_field(
             name="Message officiel",
             value=f"Nous souhaitons la bienvenue à {dirigeant.mention}, nouveau dirigeant de {role.mention} sur la scène internationale. Nous lui souhaitons succès et prospérité dans la conduite de cette nation!",
             inline=False
         )
-        
+    
         pays_log_embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else None)
         pays_log_embed.set_image(url=pays_image)
         pays_log_embed.set_footer(text=f"Date de création : {datetime.datetime.now().strftime('%d/%m/%Y à %H:%M')}")
@@ -1962,7 +1963,7 @@ async def reset_economie(interaction: discord.Interaction):
             (BALANCE_FILE, {}),
             (BALANCE_BACKUP_FILE, {}),
             (LOANS_FILE, []),
-            (PERSONNEL_FILE, {}),
+            (PIB_FILE, {}),
             (TRANSACTION_LOG_FILE, []),
         ]:
             try:
@@ -2168,12 +2169,13 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                 if role_selected and role_selected in membre.roles:
                     await membre.remove_roles(role_selected)
             # Retirer le rôle de religion
-            roles_religion = [
-                1417622211329659010, 1417622670702280845, 1417622925745586206,
-                1417623400695988245, 1417624032131682304, 1417624442905038859,
-                1417625845425766562, 1417626007770366123, 1417626204885745805,
-                1417626362738512022
-            ]
+                roles_religion = [
+                    1417622211329659010, 1417622670702280845, 1417622925745586206,
+                    1417623400695988245, 1417624032131682304, 1417624442905038859,
+                    1417625845425766562, 1417626007770366123, 1417626204885745805,
+                    1417626362738512022,
+                    1419446723310256138  # Ajout du rôle de religion à supprimer
+                ]
             for role_id in roles_religion:
                 role_religion = interaction.guild.get_role(role_id)
                 if role_religion and role_religion in membre.roles:
