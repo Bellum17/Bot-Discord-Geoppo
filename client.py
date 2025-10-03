@@ -102,7 +102,6 @@ BALANCE_BACKUP_FILE = os.path.join(DATA_DIR, "balances_backup.json")
 TRANSACTION_LOG_FILE = os.path.join(DATA_DIR, "transactions.json")
 PAYS_LOG_FILE = os.path.join(DATA_DIR, "pays_log_channel.json")
 PAYS_IMAGES_FILE = os.path.join(DATA_DIR, "pays_images.json")
-STATUS_CHANNEL_FILE = os.path.join(DATA_DIR, "status_channel.json")
 MUTE_LOG_FILE = os.path.join(DATA_DIR, "mute_log_channel.json")
 
 # === XP/LEVEL SYSTEM ===
@@ -294,8 +293,6 @@ loans = []
 pib_data = {}
 pays_log_channel_data = {}
 pays_images = {}
-status_channel_data = {}
-status_message_id = None
 mute_log_channel_data = {}
 
 # Chargement des balances et autres données après la définition de la fonction
@@ -311,7 +308,7 @@ def format_number(number):
 # Fonction pour charger toutes les données
 def load_all_data():
     """Charge toutes les données nécessaires au démarrage."""
-    global balances, log_channel_data, message_log_channel_data, loans, pib_data, pays_log_channel_data, pays_images, status_channel_data, status_message_id, mute_log_channel_data
+    global balances, log_channel_data, message_log_channel_data, loans, pib_data, pays_log_channel_data, pays_images, mute_log_channel_data
     
     # Chargement de toutes les données
     balances.update(load_balances())
@@ -321,22 +318,7 @@ def load_all_data():
     pib_data.update(load_pib())
     pays_log_channel_data.update(load_pays_log_channel())
     pays_images.update(load_pays_images())
-    status_channel_data.update(load_status_channel())
-# Fonction pour charger les données du canal de statut
-def load_status_channel():
-    if not os.path.exists(STATUS_CHANNEL_FILE):
-        with open(STATUS_CHANNEL_FILE, "w") as f:
-            json.dump({}, f)
-    try:
-        with open(STATUS_CHANNEL_FILE, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Erreur lors du chargement du canal de statut: {e}")
-        return {}
-    status_message_id = load_status_message()
-    mute_log_channel_data.update(load_mute_log_channel())
-    
-    print("Chargement des données terminé")
+## Fonction de chargement du canal de statut supprimée (obsolète)
 
 def load_pays_images():
     """Charge les images des pays depuis le fichier."""
@@ -515,13 +497,7 @@ def save_pays_log_channel(data):
     except Exception as e:
         print(f"Erreur lors de la sauvegarde du canal de log des pays: {e}")
 
-def save_status_channel(data):
-    """Sauvegarde les données du canal de notification de statut."""
-    try:
-        with open(STATUS_CHANNEL_FILE, "w") as f:
-            json.dump(data, f)
-    except Exception as e:
-        print(f"Erreur lors de la sauvegarde du canal de statut: {e}")
+## Fonction de sauvegarde du canal de statut supprimée (obsolète)
 
 def log_transaction(from_id, to_id, amount, transaction_type, guild_id):
     """
@@ -950,34 +926,7 @@ async def setstatus(interaction: discord.Interaction):
     )
     await apply_permanent_presence(bot)
 
-# Ajouter un fichier JSON pour stocker l'ID du dernier message de statut
-STATUS_MESSAGE_FILE = os.path.join(DATA_DIR, "status_message.json")
-
-# Fonction pour charger l'ID du message de statut
-def load_status_message():
-    """Charge l'ID du dernier message de statut."""
-    global status_message_id
-    if not os.path.exists(STATUS_MESSAGE_FILE):
-        with open(STATUS_MESSAGE_FILE, "w") as f:
-            json.dump({"message_id": None}, f)
-        return None
-    try:
-        with open(STATUS_MESSAGE_FILE, "r") as f:
-            data = json.load(f)
-            status_message_id = data.get("message_id")
-            return status_message_id
-    except Exception as e:
-        print(f"Erreur lors du chargement de l'ID du message de statut: {e}")
-        return None
-
-# Fonction pour sauvegarder l'ID du message de statut
-def save_status_message():
-    """Sauvegarde l'ID du dernier message de statut."""
-    try:
-        with open(STATUS_MESSAGE_FILE, "w") as f:
-            json.dump({"message_id": status_message_id}, f)
-    except Exception as e:
-        print(f"Erreur lors de la sauvegarde de l'ID du message de statut: {e}")
+## Fonctions de gestion du message de statut supprimées (obsolètes)
 
 # Fonction utilitaire pour convertir les majuscules en caractères spéciaux
 def is_valid_image_url(url):
