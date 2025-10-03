@@ -177,15 +177,8 @@ def get_progress_bar(xp, level):
         bar += "<:Barre3_Vide:1417667902471147520>"
     return f"{bar} — {percent}%"
 
-# Types de personnel et leurs coûts
-PERSONNEL_TYPES = {
-    "policiers": {"nom": "Policier", "cout_recrutement": 150, "salaire_annuel": 1200},
-    "soldats_actifs": {"nom": "Soldat actif", "cout_recrutement": 1000, "salaire_annuel": 6000},
-    "soldats_genie": {"nom": "Soldat du Génie", "cout_recrutement": 1000, "salaire_annuel": 6000},
-    "soldats_reservistes": {"nom": "Soldat réserviste", "cout_recrutement": 500, "salaire_annuel": 2000},
-    "forces_speciales": {"nom": "Force spéciale", "cout_recrutement": 5000, "salaire_annuel": 10000},
-    "agents_secrets": {"nom": "Agent secret", "cout_recrutement": 3500, "salaire_annuel": 7500}
-}
+# Configuration PIB
+PIB_DEFAULT = 0
 
 # Variables globales pour le suivi de l'état du bot
 BOT_START_TIME = time.time()
@@ -298,7 +291,7 @@ balances = {}
 log_channel_data = {}
 message_log_channel_data = {}
 loans = []
-personnel = {}
+pib_data = {}
 pays_log_channel_data = {}
 pays_images = {}
 status_channel_data = {}
@@ -318,15 +311,14 @@ def format_number(number):
 # Fonction pour charger toutes les données
 def load_all_data():
     """Charge toutes les données nécessaires au démarrage."""
-    global balances, log_channel_data, message_log_channel_data, loans, personnel, pays_log_channel_data, pays_images, status_channel_data, status_message_id, mute_log_channel_data
+    global balances, log_channel_data, message_log_channel_data, loans, pib_data, pays_log_channel_data, pays_images, status_channel_data, status_message_id, mute_log_channel_data
     
     # Chargement de toutes les données
     balances.update(load_balances())
     log_channel_data.update(load_log_channel())
     message_log_channel_data.update(load_message_log_channel())
     loans.extend(load_loans())
-    pib_data = load_pib()
-    personnel.update(pib_data)
+    pib_data.update(load_pib())
     pays_log_channel_data.update(load_pays_log_channel())
     pays_images.update(load_pays_images())
     status_channel_data.update(load_status_channel())
@@ -1662,19 +1654,14 @@ async def creer_pays(
         if image and is_valid_image_url(image):
             pays_images[role_id] = image
         
-        # Initialiser le personnel
-        personnel[role_id] = {
-            "policiers": 0,
-            "soldats_actifs": 0,
-            "soldats_genie": 0,
-            "soldats_reservistes": 0,
-            "forces_speciales": 0,
-            "agents_secrets": 0
+        # Initialiser le PIB
+        pib_data[role_id] = {
+            "pib": pib
         }
         
         # Sauvegarder toutes les données
         save_balances(balances)
-        save_pib(personnel)
+        save_pib(pib_data)
         save_pays_images(pays_images)
         save_all_json_to_postgres()
         
@@ -2022,12 +2009,9 @@ async def balance(interaction: discord.Interaction, role: discord.Role = None):
         return
     role_id = str(role.id)
     montant = balances.get(role_id, 0)
-    # Récupérer le PIB
-    pib = personnel.get(role_id, {}).get("pib", None)
-    # Si le PIB n'est pas dans personnel, essayer dans pays_log_channel_data ou autre structure
-    if pib is None:
-        # Ajoutez ici une autre logique si le PIB est stocké ailleurs
-        pib = None
+    # Récupérer le PIB depuis pib.json
+    pib_data = load_pib()
+    pib = pib_data.get(role_id, {}).get("pib", None)
     # Calcul de la dette totale (somme des emprunts avec taux)
     dette_totale = 0
     for emprunt in loans:
