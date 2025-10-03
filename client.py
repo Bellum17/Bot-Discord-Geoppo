@@ -3253,21 +3253,79 @@ async def remboursement(
         if "remboursements" not in emprunt:
             emprunt["remboursements"] = []
         emprunt["remboursements"].append({"montant": montant, "date": int(time.time())})
+        restant_apres = restant - montant
+        
+        # Si l'emprunt est totalement remboursé, le supprimer de la liste
+        if restant_apres <= 0:
+            loans.remove(emprunt)
+            print(f"[DEBUG] Emprunt n°{numero_emprunt} totalement remboursé et supprimé")
+        
         save_balances(balances)
         save_loans(loans)
         save_all_json_to_postgres()
-        restant_apres = restant - montant
+        
         # Message de confirmation
         if restant_apres <= 0:
             await interaction.followup.send(
-                f"> Emprunt n°{numero_emprunt} totalement remboursé ! ✅\n> Destinataire : {destinataire}\n> Montant total remboursé : {total_remboursement} {MONNAIE_EMOJI}.",
+                f"> Emprunt n°{numero_emprunt} totalement remboursé et supprimé ! ✅\n> Destinataire : {destinataire}\n> Montant total remboursé : {format_number(total_remboursement)} {MONNAIE_EMOJI}.",
                 ephemeral=True
             )
         else:
             await interaction.followup.send(
-                f"> Remboursement de {montant} {MONNAIE_EMOJI} effectué pour l'emprunt n°{numero_emprunt}.\n> Destinataire : {destinataire}\n> Il reste à rembourser : {restant_apres} {MONNAIE_EMOJI}.",
+                f"> Remboursement de {format_number(montant)} {MONNAIE_EMOJI} effectué pour l'emprunt n°{numero_emprunt}.\n> Destinataire : {destinataire}\n> Il reste à rembourser : {format_number(restant_apres)} {MONNAIE_EMOJI}.",
                 ephemeral=True
             )
+
+
+@bot.tree.command(name="reset_debt", description="Supprime toutes les dettes et emprunts du serveur")
+@app_commands.checks.has_permissions(administrator=True)
+async def reset_debt(interaction: discord.Interaction):
+    """Supprime toutes les dettes et emprunts."""
+    await interaction.response.defer(ephemeral=True)
+    
+    # Sauvegarder le nombre d'emprunts avant suppression
+    nombre_emprunts = len(loans)
+    
+    # Calculer le montant total des emprunts
+    montant_total = 0
+    for emprunt in loans:
+        principal = emprunt.get("somme", 0)
+        taux = emprunt.get("taux", 0)
+        montant_total += int(principal * (1 + taux / 100))
+    
+    # Vider la liste des emprunts
+    loans.clear()
+    
+    # Sauvegarder les changements
+    save_loans(loans)
+    save_all_json_to_postgres()
+    
+    # Log de l'action
+    embed_log = discord.Embed(
+        title="🗑️ | Réinitialisation des dettes",
+        description=(
+            f"> **Administrateur :** {interaction.user.mention}\n"
+            f"> **Emprunts supprimés :** {nombre_emprunts}\n"
+            f"> **Montant total effacé :** {format_number(montant_total)} {MONNAIE_EMOJI}\n"
+            f"> **Date :** {datetime.datetime.now().strftime('%d/%m/%Y à %H:%M')}"
+        ),
+        color=0xFF6B6B,
+        timestamp=datetime.datetime.now()
+    )
+    await send_log(interaction.guild, embed=embed_log)
+    
+    # Confirmation à l'utilisateur
+    confirmation_embed = discord.Embed(
+        title="✅ | Dettes supprimées",
+        description=(
+            f"> **{nombre_emprunts} emprunts** ont été supprimés\n"
+            f"> **Montant total effacé :** {format_number(montant_total)} {MONNAIE_EMOJI}\n"
+            f"> Toutes les dettes ont été annulées"
+        ),
+        color=0x00FF00
+    )
+    await interaction.followup.send(embed=confirmation_embed, ephemeral=True)
+
 
     # === Mise à jour des salons vocaux de stats ===
 
@@ -3820,6 +3878,7 @@ async def help_command(interaction: discord.Interaction):
         ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
         ("/creer_emprunt", "Crée un emprunt pour un membre ou un pays."),
         ("/remboursement", "Valide un paiement sur un emprunt en cours."),
+        ("/reset_debt", "Supprime toutes les dettes et emprunts du serveur."),
         ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
         ("/calendrier", "Lance les annonces du calendrier RP."),
         ("/reset-calendrier", "Réinitialise le calendrier RP en cours."),
