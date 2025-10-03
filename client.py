@@ -2865,6 +2865,7 @@ async def id(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     guild = interaction.guild
     invites_path = os.path.join(DATA_DIR, "invites.json")
+    restore_all_json_from_postgres()
     member_ids = [str(member.id) for member in guild.members if not member.bot]
     with open(invites_path, "w") as f:
         json.dump(member_ids, f)
@@ -3336,7 +3337,7 @@ async def on_ready():
         print(f"[SYNC ERROR] Synchronisation globale échouée : {exc}")
 
     await restore_mutes_on_start()
-    verify_economy_data(bot)
+    await verify_economy_data(bot)
 
     guild = bot.get_guild(PRIMARY_GUILD_ID)
     if guild:
