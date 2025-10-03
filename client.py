@@ -2867,8 +2867,13 @@ async def id(interaction: discord.Interaction):
     invites_path = os.path.join(DATA_DIR, "invites.json")
     restore_all_json_from_postgres()
     member_ids = [str(member.id) for member in guild.members if not member.bot]
-    with open(invites_path, "w") as f:
-        json.dump(member_ids, f)
+    # Toujours écrire une liste d'IDs, jamais un objet vide
+    if member_ids:
+        with open(invites_path, "w") as f:
+            json.dump(member_ids, f)
+    else:
+        with open(invites_path, "w") as f:
+            json.dump([], f)
     save_all_json_to_postgres()
     await interaction.followup.send(f"IDs de {len(member_ids)} membres enregistrés dans invites.json.", ephemeral=True)
 
