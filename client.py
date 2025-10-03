@@ -2021,11 +2021,11 @@ async def balance(interaction: discord.Interaction, role: discord.Role = None):
     role_id = str(role.id)
     montant = balances.get(role_id, 0)
     # Récupérer le PIB
-    pib = personnel.get(role_id, {}).get("pib") if "pib" in personnel.get(role_id, {}) else None
+    pib = personnel.get(role_id, {}).get("pib", None)
+    # Si le PIB n'est pas dans personnel, essayer dans pays_log_channel_data ou autre structure
     if pib is None:
-        # Si le PIB n'est pas dans personnel, essayer dans pays_log_channel_data ou autre structure
-        pib = None
         # Ajoutez ici une autre logique si le PIB est stocké ailleurs
+        pib = None
     # Calcul de la dette totale (somme des emprunts avec taux)
     dette_totale = 0
     for emprunt in loans:

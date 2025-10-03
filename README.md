@@ -1,3 +1,4 @@
+
 # Bot d'Économie pour Discord
 
 Ce bot Discord gère un système d'économie avancé pour votre serveur, avec une monnaie virtuelle, des prêts, du personnel, la création de pays, et une persistance robuste des données via PostgreSQL (Railway).
