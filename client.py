@@ -828,7 +828,33 @@ async def on_message(message):
         levels[user_id] = {"xp": 0, "level": 1}
     # Calcul XP : 1 XP de base + 1 XP tous les 10 caractères
     char_count = len(message.content)
-    xp_gain = 1 + (char_count // 10)
+    # Bonus XP par grade acquis
+    palier_roles = {
+        10: 1417893183903502468,
+        20: 1417893555376230570,
+        30: 1417893729066291391,
+        40: 1417893878136176680,
+        50: 1417894464122261555,
+        60: 1417894846844244139,
+        70: 1417895041862733986,
+        80: 1417895157553958922,
+        90: 1417895282443812884,
+        100: 1417895415273099404
+    }
+    member = message.guild.get_member(message.author.id)
+    bonus_grade = 0
+    if member:
+        for i, role_id in enumerate(palier_roles.values(), start=1):
+            if discord.utils.get(member.roles, id=role_id):
+                bonus_grade += i
+    # Rôle spécial
+    special_role_id = 1393303261519417385
+    has_special = member and discord.utils.get(member.roles, id=special_role_id)
+    xp_chair = char_count // 10  # XP chair (1 XP tous les 10 caractères)
+    if has_special:
+        xp_gain = 5 + (char_count // 15) * 2 + xp_chair
+    else:
+        xp_gain = 1 + xp_chair + bonus_grade
     levels[user_id]["xp"] += xp_gain
     xp = levels[user_id]["xp"]
     level = levels[user_id]["level"]
