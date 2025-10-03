@@ -494,10 +494,11 @@ def load_personnel():
         return {}
 
 def save_personnel(personnel_data):
-    """Sauvegarde les données du personnel."""
+    """Sauvegarde les données du personnel et synchronise avec PostgreSQL."""
     try:
         with open(PERSONNEL_FILE, "w") as f:
             json.dump(personnel_data, f)
+        save_all_json_to_postgres()
     except Exception as e:
         print(f"Erreur lors de la sauvegarde du personnel: {e}")
 
