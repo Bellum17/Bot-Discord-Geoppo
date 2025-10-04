@@ -2052,19 +2052,19 @@ async def add_argent(interaction: discord.Interaction, role: discord.Role, monta
 
 # Commande pour retirer de l'argent à un rôle (utilisable uniquement par les membres du rôle)
 @bot.tree.command(name="remove_argent", description="Retire de l'argent à un rôle (utilisable uniquement par les membres du rôle)")
+@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(role="Le rôle (pays) à débiter", montant="Montant à retirer")
 async def remove_argent(interaction: discord.Interaction, role: discord.Role, montant: int):
     if montant <= 0:
         await interaction.response.send_message("> Le montant doit être positif.", ephemeral=True)
         return
-    if role not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("> Vous devez avoir ce rôle pour retirer de l'argent.", ephemeral=True)
-        return
+    
     role_id = str(role.id)
     solde = balances.get(role_id, 0)
     if montant > solde:
         await interaction.response.send_message("> Le rôle n'a pas assez d'argent.", ephemeral=True)
         return
+    
     # Vérification et retrait du montant
     nouveau_solde = solde - montant
     balances[role_id] = nouveau_solde
@@ -3072,7 +3072,6 @@ async def classement_lvl(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="creer_emprunt", description="Crée un emprunt et attribue la somme au demandeur")
-@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
     somme="Montant à emprunter",
     taux="Taux d'intérêt (%) - détermine la dette totale",
@@ -3243,7 +3242,6 @@ async def liste_emprunt(interaction: discord.Interaction):
 
 # Commande /remboursement : sélectionne un emprunt et effectue un paiement
 @bot.tree.command(name="remboursement", description="Rembourse un emprunt en cours")
-@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
     numero_emprunt="Numéro de l'emprunt à rembourser (voir /liste_emprunt)",
     montant="Montant à rembourser"
@@ -3899,6 +3897,7 @@ async def help_command(interaction: discord.Interaction):
         ("/balance", "Consulte le budget et dette/PIB de ton pays."),
         ("/classement", "Affiche le classement des pays par budget."),
         ("/payer", "Transfère des fonds vers un autre pays ou la banque."),
+        ("/creer_emprunt", "Crée un emprunt avec durée libre (informatif)."),
         ("/liste_emprunt", "Liste tes emprunts en cours avec leur statut."),
         ("/remboursement", "Effectue un paiement sur un emprunt en cours."),
         ("/lvl", "Affiche ton niveau et ta progression XP."),
@@ -3930,14 +3929,11 @@ async def help_command(interaction: discord.Interaction):
             ("/ban", "Bannit un membre du serveur après confirmation."),
             ("/setpermission_mute", "Réapplique les permissions du rôle mute partout."),
             ("/setlogmute", "Définit le salon de logs pour les sanctions."),
-            ("/id", "Archive tous les IDs des membres."),
-            ("/invites", "Envoie une invitation en message privé à tous les membres."),
             ("/set_lvl", "Active ou désactive le système de niveaux."),
             ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
         ]
 
         admin_commands_part3 = [
-            ("/creer_emprunt", "Crée un emprunt avec durée libre (informatif)."),
             ("/reset_debt", "Supprime toutes les dettes et emprunts du serveur."),
             ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
             ("/calendrier", "Lance les annonces du calendrier RP."),
