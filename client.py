@@ -923,15 +923,6 @@ async def setlogeconomy(interaction: discord.Interaction, channel: discord.TextC
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.tree.command(name="setstatus", description="Affiche le statut permanent du bot")
-@app_commands.checks.has_permissions(administrator=True)
-async def setstatus(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        f"> Le statut du bot est verrouillé sur **{PERMANENT_STATUS_TEXT}**.",
-        ephemeral=True
-    )
-    await apply_permanent_presence(bot)
-
 ## Fonctions de gestion du message de statut supprimées (obsolètes)
 
 # Fonction utilitaire pour convertir les majuscules en caractères spéciaux
@@ -3906,7 +3897,6 @@ async def help_command(interaction: discord.Interaction):
     admin_commands_part1 = [
         ("/purge", "Supprime jusqu'à 1000 messages dans un salon."),
         ("/setlogeconomy", "Définit le salon de logs pour l'économie."),
-        ("/setstatus", "Met à jour le statut et le message du bot."),
         ("/creer_pays", "Crée un pays avec ses salons et rôles associés."),
         ("/modifier_image_pays", "Met à jour l'image utilisée pour un pays."),
         ("/setlogpays", "Configure le salon de logs des actions liées aux pays."),
