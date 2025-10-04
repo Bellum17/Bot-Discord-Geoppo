@@ -1952,28 +1952,49 @@ async def balance(interaction: discord.Interaction, role: discord.Role = None):
         return
     role_id = str(role.id)
     montant = balances.get(role_id, 0)
+    print(f"[DEBUG] Balance pour role_id {role_id}: {montant}")
+    
     # Récupérer le PIB depuis pib.json
     pib_data = load_pib()
     pib = pib_data.get(role_id, {}).get("pib", None)
+    print(f"[DEBUG] PIB pour role_id {role_id}: {pib}")
+    print(f"[DEBUG] PIB data complet: {pib_data}")
     # Calcul de la dette totale (somme des emprunts avec taux)
     dette_totale = 0
-    for emprunt in loans:
+    emprunts_trouves = []
+    
+    print(f"[DEBUG] Recherche d'emprunts pour role_id: {role_id}")
+    print(f"[DEBUG] Total emprunts dans la base: {len(loans)}")
+    print(f"[DEBUG] Tous les emprunts: {loans}")
+    
+    for i, emprunt in enumerate(loans):
         # Vérifier si l'emprunt concerne ce rôle/pays
         emprunt_role_id = emprunt.get("role_id")
+        print(f"[DEBUG] Emprunt {i}: role_id={emprunt_role_id}, recherché={role_id}")
+        
         if emprunt_role_id == role_id:
             principal = emprunt.get("somme", 0)
             taux = emprunt.get("taux", 0)
-            dette_totale += int(principal * (1 + taux / 100))
-            print(f"[DEBUG] Emprunt trouvé pour {role_id}: principal={principal}, taux={taux}, dette={int(principal * (1 + taux / 100))}")
+            dette_emprunt = int(principal * (1 + taux / 100))
+            dette_totale += dette_emprunt
+            emprunts_trouves.append({
+                "principal": principal,
+                "taux": taux,
+                "dette": dette_emprunt
+            })
+            print(f"[DEBUG] ✅ Emprunt trouvé pour {role_id}: principal={principal}, taux={taux}, dette={dette_emprunt}")
     
     print(f"[DEBUG] Dette totale calculée pour {role_id}: {dette_totale}")
     print(f"[DEBUG] PIB pour {role_id}: {pib}")
+    print(f"[DEBUG] Nombre d'emprunts trouvés: {len(emprunts_trouves)}")
     
     # Pourcentage dette/PIB
     pourcentage_pib = 0
-    if pib and pib > 0:
+    if pib and pib > 0 and dette_totale > 0:
         pourcentage_pib = round((dette_totale / pib) * 100, 2)
-        print(f"[DEBUG] Pourcentage dette/PIB: {pourcentage_pib}%")
+        print(f"[DEBUG] Calcul pourcentage: {dette_totale} / {pib} * 100 = {pourcentage_pib}%")
+    else:
+        print(f"[DEBUG] Pas de calcul de pourcentage: pib={pib}, dette_totale={dette_totale}")
     # Texte formaté
     texte = (
         "⠀\n"
@@ -3077,10 +3098,14 @@ async def creer_emprunt(
     if role:
         balances[role_id] = balances.get(role_id, 0) - somme
         debiteur = role.mention
+        print(f"[DEBUG] Débit du pays {role.name} (ID: {role_id}), montant: {somme}")
     else:
         debiteur = "Banque centrale"
+        print(f"[DEBUG] Débit de la Banque centrale, montant: {somme}")
+    
     # Crédit du demandeur
     balances[demandeur_id] = balances.get(demandeur_id, 0) + somme
+    print(f"[DEBUG] Crédit du demandeur {interaction.user.name} (ID: {demandeur_id}), montant: {somme}")
     # Création de l'emprunt
     emprunt = {
         "id": f"{demandeur_id}-{int(time.time())}",
