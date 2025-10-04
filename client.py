@@ -1967,22 +1967,49 @@ async def balance(interaction: discord.Interaction, role: discord.Role = None):
     print(f"[DEBUG] Total emprunts dans la base: {len(loans)}")
     print(f"[DEBUG] Tous les emprunts: {loans}")
     
+    # Récupérer tous les membres ayant ce rôle pour identifier les citoyens
+    citoyens_ids = []
+    for member in interaction.guild.members:
+        if any(str(member_role.id) == role_id for member_role in member.roles):
+            citoyens_ids.append(str(member.id))
+    
+    print(f"[DEBUG] Citoyens du pays {role.name} (role_id: {role_id}): {citoyens_ids}")
+    
     for i, emprunt in enumerate(loans):
         # Vérifier si l'emprunt concerne ce rôle/pays
         emprunt_role_id = emprunt.get("role_id")
-        print(f"[DEBUG] Emprunt {i}: role_id={emprunt_role_id}, recherché={role_id}")
+        emprunt_demandeur_id = emprunt.get("demandeur_id")
         
+        print(f"[DEBUG] Emprunt {i}: role_id={emprunt_role_id}, demandeur_id={emprunt_demandeur_id}")
+        
+        # Cas 1: Emprunt fait par le pays lui-même
         if emprunt_role_id == role_id:
             principal = emprunt.get("somme", 0)
             taux = emprunt.get("taux", 0)
             dette_emprunt = int(principal * (1 + taux / 100))
             dette_totale += dette_emprunt
             emprunts_trouves.append({
+                "type": "pays",
                 "principal": principal,
                 "taux": taux,
                 "dette": dette_emprunt
             })
-            print(f"[DEBUG] ✅ Emprunt trouvé pour {role_id}: principal={principal}, taux={taux}, dette={dette_emprunt}")
+            print(f"[DEBUG] ✅ Emprunt du pays trouvé: principal={principal}, taux={taux}, dette={dette_emprunt}")
+        
+        # Cas 2: Emprunt fait par un citoyen auprès de la Banque centrale
+        elif emprunt_role_id is None and emprunt_demandeur_id in citoyens_ids:
+            principal = emprunt.get("somme", 0)
+            taux = emprunt.get("taux", 0)
+            dette_emprunt = int(principal * (1 + taux / 100))
+            dette_totale += dette_emprunt
+            emprunts_trouves.append({
+                "type": "citoyen_banque_centrale",
+                "demandeur": emprunt_demandeur_id,
+                "principal": principal,
+                "taux": taux,
+                "dette": dette_emprunt
+            })
+            print(f"[DEBUG] ✅ Emprunt citoyen Banque centrale trouvé: demandeur={emprunt_demandeur_id}, principal={principal}, taux={taux}, dette={dette_emprunt}")
     
     print(f"[DEBUG] Dette totale calculée pour {role_id}: {dette_totale}")
     print(f"[DEBUG] PIB pour {role_id}: {pib}")
@@ -3060,7 +3087,7 @@ async def classement_lvl(interaction: discord.Interaction):
 @app_commands.describe(
     somme="Montant à emprunter",
     taux="Taux d'intérêt (%) - détermine la dette totale",
-    duree="Durée supposée de l'emprunt (informatif seulement, pas de calcul automatique)",
+    duree="Durée supposée de l'emprunt (texte libre, informatif seulement)",
     nombre_paiement="Nombre de paiements prévus (informatif seulement)",
     role="Rôle (pays) à débiter - si non spécifié, débit de la Banque centrale"
 )
@@ -3068,7 +3095,7 @@ async def creer_emprunt(
     interaction: discord.Interaction,
     somme: int,
     taux: float,
-    duree: int,
+    duree: str,
     nombre_paiement: int = None,
     role: discord.Role = None
 ):
@@ -3142,7 +3169,7 @@ async def creer_emprunt(
             f"> **Demandeur :** {interaction.user.mention}\n"
             f"> **Montant :** {format_number(somme)} {MONNAIE_EMOJI}\n"
             f"> **Taux :** {taux}%\n"
-            f"> **Durée prévue :** {duree} jours (informatif)\n"
+            f"> **Durée prévue :** {duree} (informatif)\n"
             f"> **Nombre de paiements prévus :** {nombre_paiement if nombre_paiement else 'Non défini'}\n"
             f"> **Débiteur :** {debiteur}{INVISIBLE_CHAR}"
         ),
@@ -3163,7 +3190,7 @@ async def creer_emprunt(
         description=(
             f"> **Montant accordé :** {format_number(somme)} {MONNAIE_EMOJI}\n"
             f"> **Taux d'intérêt :** {taux}%\n"
-            f"> **Durée prévue :** {duree} jours (informatif)\n"
+            f"> **Durée prévue :** {duree} (informatif)\n"
             f"> **Montant total à rembourser :** {format_number(int(somme * (1 + taux / 100)))} {MONNAIE_EMOJI}\n"
             f"> **Source :** {debiteur}\n"
             f"> ⚠️ **Note :** La durée est purement informative, aucun remboursement automatique."
