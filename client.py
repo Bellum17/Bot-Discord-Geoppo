@@ -923,8 +923,6 @@ async def setlogeconomy(interaction: discord.Interaction, channel: discord.TextC
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-## Fonctions de gestion du message de statut supprimées (obsolètes)
-
 # Fonction utilitaire pour convertir les majuscules en caractères spéciaux
 def is_valid_image_url(url):
     """Vérifie si l'URL pointe vers une image valide."""
@@ -3894,64 +3892,88 @@ else:
 
 @bot.tree.command(name="help", description="Affiche la liste complète des commandes du bot")
 async def help_command(interaction: discord.Interaction):
-    admin_commands_part1 = [
-        ("/purge", "Supprime jusqu'à 1000 messages dans un salon."),
-        ("/setlogeconomy", "Définit le salon de logs pour l'économie."),
-        ("/creer_pays", "Crée un pays avec ses salons et rôles associés."),
-        ("/modifier_image_pays", "Met à jour l'image utilisée pour un pays."),
-        ("/setlogpays", "Configure le salon de logs des actions liées aux pays."),
-        ("/reset_economie", "Réinitialise toutes les données économiques."),
-        ("/add_argent", "Ajoute des fonds à un pays."),
-        ("/supprimer_pays", "Supprime un pays et nettoie ses données."),
-        ("/modifier_pays", "Met à jour le nom, le dirigeant ou les rôles d'un pays."),
-        ("/creer_drapeau", "Génère un emoji drapeau à partir d'une image."),
-        ("/creer_role_mute", "Crée le rôle mute et applique les permissions."),
-        ("/mute", "Mute un membre pour une durée définie."),
-    ]
-
-    admin_commands_part2 = [
-        ("/unmute", "Retire le mute d'un membre."),
-        ("/ban", "Bannit un membre du serveur après confirmation."),
-        ("/setpermission_mute", "Réapplique les permissions du rôle mute partout."),
-        ("/setlogmute", "Définit le salon de logs pour les sanctions."),
-        ("/id", "Archive tous les IDs des membres."),
-        ("/invites", "Envoie une invitation en message privé à tous les membres."),
-        ("/set_lvl", "Active ou désactive le système de niveaux."),
-        ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
-        ("/creer_emprunt", "Crée un emprunt pour un membre ou un pays."),
-        ("/remboursement", "Valide un paiement sur un emprunt en cours."),
-        ("/reset_debt", "Supprime toutes les dettes et emprunts du serveur."),
-        ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
-        ("/calendrier", "Lance les annonces du calendrier RP."),
-        ("/reset-calendrier", "Réinitialise le calendrier RP en cours."),
-    ]
-
+    # Vérifier si l'utilisateur est administrateur
+    is_admin = interaction.user.guild_permissions.administrator
+    
     member_commands = [
+        ("/balance", "Consulte le budget et dette/PIB de ton pays."),
         ("/classement", "Affiche le classement des pays par budget."),
         ("/payer", "Transfère des fonds vers un autre pays ou la banque."),
-        ("/balance", "Consulte le budget de ton pays (ou d'un rôle autorisé)."),
-        ("/remove_argent", "Retire des fonds du pays que tu diriges."),
-        ("/classement_lvl", "Affiche le classement des membres par niveau."),
         ("/liste_emprunt", "Liste tes emprunts en cours avec leur statut."),
+        ("/remboursement", "Effectue un paiement sur un emprunt en cours."),
         ("/lvl", "Affiche ton niveau et ta progression XP."),
+        ("/classement_lvl", "Affiche le classement des membres par niveau."),
         ("/guide", "Découvre la présentation du serveur."),
         ("/help", "Affiche cette fenêtre d'aide."),
     ]
+    
+    if is_admin:
+        # Commandes administrateur (visibles uniquement pour les admins)
+        admin_commands_part1 = [
+            ("/purge", "Supprime jusqu'à 1000 messages dans un salon."),
+            ("/setlogeconomy", "Définit le salon de logs pour l'économie."),
+            ("/creer_pays", "Crée un pays avec ses salons et rôles associés."),
+            ("/modifier_pays", "Met à jour le nom, PIB, capitale ou dirigeant d'un pays."),
+            ("/supprimer_pays", "Supprime un pays et nettoie ses données."),
+            ("/modifier_image_pays", "Met à jour l'image utilisée pour un pays."),
+            ("/setlogpays", "Configure le salon de logs des actions liées aux pays."),
+            ("/reset_economie", "Réinitialise toutes les données économiques."),
+            ("/add_argent", "Ajoute des fonds à un pays."),
+            ("/remove_argent", "Retire des fonds d'un pays (admin ou membre du rôle)."),
+            ("/creer_drapeau", "Génère un emoji drapeau à partir d'une image."),
+        ]
 
-    sections_data = [
-        ("Commandes Administrateur (1/2)", admin_commands_part1),
-        ("Commandes Administrateur (2/2)", admin_commands_part2),
-        ("Commandes Membres", member_commands),
-    ]
+        admin_commands_part2 = [
+            ("/creer_role_mute", "Crée le rôle mute et applique les permissions."),
+            ("/mute", "Mute un membre pour une durée définie."),
+            ("/unmute", "Retire le mute d'un membre."),
+            ("/ban", "Bannit un membre du serveur après confirmation."),
+            ("/setpermission_mute", "Réapplique les permissions du rôle mute partout."),
+            ("/setlogmute", "Définit le salon de logs pour les sanctions."),
+            ("/id", "Archive tous les IDs des membres."),
+            ("/invites", "Envoie une invitation en message privé à tous les membres."),
+            ("/set_lvl", "Active ou désactive le système de niveaux."),
+            ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
+        ]
 
-    embed = discord.Embed(
-        title="Centre d'aide",
-        description=(
-            "Toutes les commandes sont disponibles via la barre slash. "
-            "Parcours les sections ci-dessous pour trouver celle qui t'intéresse."
-        ),
-        color=EMBED_COLOR,
-    )
+        admin_commands_part3 = [
+            ("/creer_emprunt", "Crée un emprunt avec durée libre (informatif)."),
+            ("/reset_debt", "Supprime toutes les dettes et emprunts du serveur."),
+            ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
+            ("/calendrier", "Lance les annonces du calendrier RP."),
+            ("/reset-calendrier", "Réinitialise le calendrier RP en cours."),
+        ]
+
+        sections_data = [
+            ("Commandes Administrateur (1/3)", admin_commands_part1),
+            ("Commandes Administrateur (2/3)", admin_commands_part2),
+            ("Commandes Administrateur (3/3)", admin_commands_part3),
+            ("Commandes Membres", member_commands),
+        ]
+        
+        embed = discord.Embed(
+            title="Centre d'aide - Mode Administrateur",
+            description=(
+                "Toutes les commandes sont disponibles via la barre slash. "
+                "Parcours les 4 sections ci-dessous pour trouver celle qui t'intéresse."
+            ),
+            color=EMBED_COLOR,
+        )
+    else:
+        # Seules les commandes membres pour les non-admins
+        sections_data = [
+            ("Commandes Disponibles", member_commands),
+        ]
+        
+        embed = discord.Embed(
+            title="Centre d'aide",
+            description=(
+                "Voici toutes les commandes que tu peux utiliser. "
+                "Utilise la barre slash pour les exécuter."
+            ),
+            color=EMBED_COLOR,
+        )
+
     embed.set_thumbnail(url=HELP_THUMBNAIL_URL)
     embed.set_footer(text="Astuce : tape '/' puis le nom de la commande pour voir ses options.")
 
