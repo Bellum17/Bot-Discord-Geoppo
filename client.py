@@ -3545,6 +3545,7 @@ async def creer_stats_voice_channels(interaction: discord.Interaction, categorie
 
 # === Commande /guide (présentation serveur) ===
 @bot.tree.command(name="guide", description="Guide de présentation du serveur")
+@app_commands.checks.has_permissions(administrator=True)
 async def guide(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🪐 | Guide de Présentation du Serveur",
@@ -3898,7 +3899,7 @@ async def help_command(interaction: discord.Interaction):
         ("/balance", "Consulte le budget et dette/PIB de ton pays."),
         ("/classement", "Affiche le classement des pays par budget."),
         ("/payer", "Transfère des fonds vers un autre pays ou la banque."),
-        ("/creer_emprunt", "Crée un emprunt avec durée libre (informatif)."),
+        ("/creer_emprunt", "Crée un emprunt avec un tiers."),
         ("/liste_emprunt", "Liste tes emprunts en cours avec leur statut."),
         ("/remboursement", "Effectue un paiement sur un emprunt en cours."),
     ]
@@ -3906,7 +3907,6 @@ async def help_command(interaction: discord.Interaction):
     xp_et_autre_membres = [
         ("/lvl", "Affiche ton niveau et ta progression XP."),
         ("/classement_lvl", "Affiche le classement des membres par niveau."),
-        ("/guide", "Découvre la présentation du serveur."),
         ("/help", "Affiche cette fenêtre d'aide."),
     ]
     
@@ -3945,6 +3945,7 @@ async def help_command(interaction: discord.Interaction):
         ]
         
         outils_rp = [
+            ("/guide", "Guide de présentation du serveur."),
             ("/calendrier", "Lance les annonces du calendrier RP."),
             ("/reset-calendrier", "Réinitialise le calendrier RP en cours."),
             ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
