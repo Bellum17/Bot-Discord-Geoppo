@@ -1747,8 +1747,8 @@ async def setlogpays(interaction: discord.Interaction, channel: discord.TextChan
 # Commande ranking simplifiée : affiche seulement l'argent total en circulation
 
 # Commande classement : affiche le classement des membres par argent
-@bot.tree.command(name="classement", description="Affiche le classement des membres par argent")
-async def classement(interaction: discord.Interaction):
+@bot.tree.command(name="classement_eco", description="Affiche le classement des membres par argent")
+async def classement_eco(interaction: discord.Interaction):
 
     classement = sorted(balances.items(), key=lambda x: x[1], reverse=True)
     per_page = 15
@@ -3897,7 +3897,7 @@ async def help_command(interaction: discord.Interaction):
     # Commandes membres organisées par catégorie
     economie_membres = [
         ("/balance", "Consulte le budget et dette/PIB de ton pays."),
-        ("/classement", "Affiche le classement des pays par budget."),
+        ("/classement_eco", "Affiche le classement des pays par budget."),
         ("/payer", "Transfère des fonds vers un autre pays ou la banque."),
         ("/creer_emprunt", "Crée un emprunt avec un tiers."),
         ("/liste_emprunt", "Liste tes emprunts en cours avec leur statut."),
