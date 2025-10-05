@@ -3893,13 +3893,17 @@ async def help_command(interaction: discord.Interaction):
     # Vérifier si l'utilisateur est administrateur
     is_admin = interaction.user.guild_permissions.administrator
     
-    member_commands = [
+    # Commandes membres organisées par catégorie
+    economie_membres = [
         ("/balance", "Consulte le budget et dette/PIB de ton pays."),
         ("/classement", "Affiche le classement des pays par budget."),
         ("/payer", "Transfère des fonds vers un autre pays ou la banque."),
         ("/creer_emprunt", "Crée un emprunt avec durée libre (informatif)."),
         ("/liste_emprunt", "Liste tes emprunts en cours avec leur statut."),
         ("/remboursement", "Effectue un paiement sur un emprunt en cours."),
+    ]
+    
+    xp_et_autre_membres = [
         ("/lvl", "Affiche ton niveau et ta progression XP."),
         ("/classement_lvl", "Affiche le classement des membres par niveau."),
         ("/guide", "Découvre la présentation du serveur."),
@@ -3907,64 +3911,74 @@ async def help_command(interaction: discord.Interaction):
     ]
     
     if is_admin:
-        # Commandes administrateur (visibles uniquement pour les admins)
-        admin_commands_part1 = [
-            ("/purge", "Supprime jusqu'à 1000 messages dans un salon."),
-            ("/setlogeconomy", "Définit le salon de logs pour l'économie."),
+        # Commandes administrateur organisées par catégorie
+        gestion_pays = [
             ("/creer_pays", "Crée un pays avec ses salons et rôles associés."),
             ("/modifier_pays", "Met à jour le nom, PIB, capitale ou dirigeant d'un pays."),
             ("/supprimer_pays", "Supprime un pays et nettoie ses données."),
             ("/modifier_image_pays", "Met à jour l'image utilisée pour un pays."),
-            ("/setlogpays", "Configure le salon de logs des actions liées aux pays."),
-            ("/reset_economie", "Réinitialise toutes les données économiques."),
-            ("/add_argent", "Ajoute des fonds à un pays."),
-            ("/remove_argent", "Retire des fonds d'un pays (admin ou membre du rôle)."),
             ("/creer_drapeau", "Génère un emoji drapeau à partir d'une image."),
         ]
+        
+        economie_admin = [
+            ("/add_argent", "Ajoute des fonds à un pays."),
+            ("/remove_argent", "Retire des fonds d'un pays (admin ou membre du rôle)."),
+            ("/reset_economie", "Réinitialise toutes les données économiques."),
+            ("/reset_debt", "Supprime toutes les dettes et emprunts du serveur."),
+        ]
 
-        admin_commands_part2 = [
+        moderation = [
+            ("/purge", "Supprime jusqu'à 1000 messages dans un salon."),
             ("/creer_role_mute", "Crée le rôle mute et applique les permissions."),
             ("/mute", "Mute un membre pour une durée définie."),
             ("/unmute", "Retire le mute d'un membre."),
             ("/ban", "Bannit un membre du serveur après confirmation."),
             ("/setpermission_mute", "Réapplique les permissions du rôle mute partout."),
+        ]
+        
+        configuration_logs = [
+            ("/setlogeconomy", "Définit le salon de logs pour l'économie."),
+            ("/setlogpays", "Configure le salon de logs des actions liées aux pays."),
             ("/setlogmute", "Définit le salon de logs pour les sanctions."),
             ("/set_lvl", "Active ou désactive le système de niveaux."),
             ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
         ]
-
-        admin_commands_part3 = [
-            ("/reset_debt", "Supprime toutes les dettes et emprunts du serveur."),
-            ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
+        
+        outils_rp = [
             ("/calendrier", "Lance les annonces du calendrier RP."),
             ("/reset-calendrier", "Réinitialise le calendrier RP en cours."),
+            ("/creer_stats_voice_channels", "Génère les salons vocaux de statistiques."),
         ]
 
         sections_data = [
-            ("Commandes Administrateur (1/3)", admin_commands_part1),
-            ("Commandes Administrateur (2/3)", admin_commands_part2),
-            ("Commandes Administrateur (3/3)", admin_commands_part3),
-            ("Commandes Membres", member_commands),
+            ("🏛️ Gestion des Pays", gestion_pays),
+            ("💰 Économie & Finance", economie_admin),
+            ("🛡️ Modération", moderation),
+            ("⚙️ Configuration & Logs", configuration_logs),
+            ("🎭 Outils RP", outils_rp),
+            ("👥 Économie Membres", economie_membres),
+            ("⭐ XP & Divers", xp_et_autre_membres),
         ]
         
         embed = discord.Embed(
             title="Centre d'aide - Mode Administrateur",
             description=(
-                "Toutes les commandes sont disponibles via la barre slash. "
-                "Parcours les 4 sections ci-dessous pour trouver celle qui t'intéresse."
+                "Commandes organisées par catégorie. "
+                "Utilise la barre slash pour accéder à toutes les fonctionnalités."
             ),
             color=EMBED_COLOR,
         )
     else:
         # Seules les commandes membres pour les non-admins
         sections_data = [
-            ("Commandes Disponibles", member_commands),
+            ("💰 Économie & Emprunts", economie_membres),
+            ("⭐ XP & Divers", xp_et_autre_membres),
         ]
         
         embed = discord.Embed(
             title="Centre d'aide",
             description=(
-                "Voici toutes les commandes que tu peux utiliser. "
+                "Voici toutes les commandes organisées par catégorie. "
                 "Utilise la barre slash pour les exécuter."
             ),
             color=EMBED_COLOR,
