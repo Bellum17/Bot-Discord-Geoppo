@@ -2664,6 +2664,8 @@ async def mute(
         "unmute_time": unmute_time
     }
     save_active_mutes(active_mutes)
+    
+    print(f"[MUTES] ✅ Mute enregistré: {membre.name} dans {guild.name}, fin prévue: {datetime.datetime.fromtimestamp(unmute_time)}")
     bot.loop.create_task(schedule_unmute(guild.id, membre.id, unmute_time))
 
 @bot.tree.command(name="unmute", description="Retire le mute d'un membre")
@@ -2849,7 +2851,10 @@ def load_active_mutes():
 def save_active_mutes(data):
     try:
         with open(ACTIVE_MUTES_FILE, "w") as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=2)
+        # Sauvegarder aussi dans PostgreSQL
+        save_all_json_to_postgres()
+        print(f"[MUTES] Sauvegarde de {len(data)} mutes actifs")
     except Exception as e:
         print(f"Erreur lors de la sauvegarde des mutes actifs: {e}")
 
@@ -2858,20 +2863,30 @@ active_mutes = load_active_mutes()
 async def schedule_unmute(guild_id, user_id, unmute_time):
     now = time.time()
     delay = unmute_time - now
+    
     if delay > 0:
+        print(f"[MUTES] Planification unmute dans {int(delay)}s pour User {user_id} dans Guild {guild_id}")
         await asyncio.sleep(delay)
+    
+    print(f"[MUTES] Exécution unmute automatique pour User {user_id} dans Guild {guild_id}")
     guild = bot.get_guild(int(guild_id))
     if not guild:
+        print(f"[MUTES] Erreur: Guild {guild_id} introuvable")
         return
+        
     member = guild.get_member(int(user_id))
     mute_role = get_mute_role(guild)
+    
     if member and mute_role and mute_role in member.roles:
         try:
             await member.remove_roles(mute_role, reason="Fin du mute automatique")
+            print(f"[MUTES] ✅ Unmute réussi pour {member.name} dans {guild.name}")
+            
             try:
                 await member.send(f"Votre sanction mute sur **{guild.name}** est terminée.")
             except Exception:
                 pass
+                
             # Log de l'unmute automatique
             unmute_embed = discord.Embed(
                 title="🔊 Mute terminé",
@@ -2880,21 +2895,36 @@ async def schedule_unmute(guild_id, user_id, unmute_time):
                 timestamp=datetime.datetime.now()
             )
             await send_mute_log(guild, unmute_embed)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[MUTES] Erreur lors de l'unmute: {e}")
+    else:
+        print(f"[MUTES] Membre {user_id} déjà unmute ou introuvable dans {guild.name}")
+    
     # Nettoyer le mute actif
     active_mutes.pop(f"{guild_id}:{user_id}", None)
     save_active_mutes(active_mutes)
 
 async def restore_mutes_on_start():
+    print("[MUTES] Restauration des mutes actifs au démarrage...")
     now = time.time()
+    restored_count = 0
+    expired_count = 0
+    
     for key, mute in list(active_mutes.items()):
         guild_id, user_id = mute["guild_id"], mute["user_id"]
         unmute_time = mute["unmute_time"]
+        
         if unmute_time <= now:
+            print(f"[MUTES] Mute expiré trouvé: Guild {guild_id}, User {user_id}")
             await schedule_unmute(guild_id, user_id, now)
+            expired_count += 1
         else:
+            remaining_time = unmute_time - now
+            print(f"[MUTES] Mute actif restauré: Guild {guild_id}, User {user_id}, Temps restant: {int(remaining_time)}s")
             bot.loop.create_task(schedule_unmute(guild_id, user_id, unmute_time))
+            restored_count += 1
+    
+    print(f"[MUTES] Restauration terminée: {restored_count} mutes actifs, {expired_count} mutes expirés")
 
 # ===== NOUVELLES COMMANDES =====
 
