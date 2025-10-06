@@ -1047,6 +1047,7 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
     discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
     discord.app_commands.Choice(name="Athéisme", value="1417626362738512022"),
+    discord.app_commands.Choice(name="Tengrisme", value="1424789872329101498"),
     discord.app_commands.Choice(name="Foi des Sept", value="1419446723310256138"),
     discord.app_commands.Choice(name="Dieu Noyé", value="1424783855331577856"),
 ])
@@ -1061,6 +1062,7 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
     discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
     discord.app_commands.Choice(name="Athéisme", value="1417626362738512022"),
+    discord.app_commands.Choice(name="Tengrisme", value="1424789872329101498"),
     discord.app_commands.Choice(name="Foi des Sept", value="1419446723310256138"),
     discord.app_commands.Choice(name="Dieu Noyé", value="1424783855331577856"),
 ])
@@ -2147,7 +2149,8 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                     1417622211329659010, 1417622670702280845, 1417622925745586206,
                     1417623400695988245, 1417624032131682304, 1417624442905038859,
                     1417625845425766562, 1417626007770366123, 1417626204885745805,
-                    1417626362738512022,
+                    1417626362738512022,  # Athéisme
+                    1424789872329101498,  # Tengrisme
                     1419446723310256138,  # Foi des Sept
                     1424783855331577856   # Dieu Noyé
                 ]
