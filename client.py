@@ -2575,17 +2575,35 @@ async def creer_role_mute(interaction: discord.Interaction):
     # Configurer les permissions sur toutes les catégories et salons
     for category in guild.categories:
         try:
-            await category.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+            await category.set_permissions(
+                mute_role, 
+                send_messages=False, 
+                speak=False, 
+                add_reactions=False, 
+                use_external_emojis=False,
+                create_public_threads=False,
+                create_private_threads=False,
+                connect=False
+            )
         except Exception:
             pass
     for channel in guild.channels:
         try:
-            await channel.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+            await channel.set_permissions(
+                mute_role, 
+                send_messages=False, 
+                speak=False, 
+                add_reactions=False, 
+                use_external_emojis=False,
+                create_public_threads=False,
+                create_private_threads=False,
+                connect=False
+            )
         except Exception:
             pass
 
     embed = discord.Embed(
-        description=f"> Le rôle {mute_role.mention} a été créé et configuré sur tous les salons.{INVISIBLE_CHAR}",
+        description=f"> Le rôle {mute_role.mention} a été créé et configuré avec toutes les restrictions sur tous les salons.{INVISIBLE_CHAR}",
         color=EMBED_COLOR
     )
     await interaction.followup.send(embed=embed, ephemeral=True)
@@ -2771,16 +2789,34 @@ async def setpermission_mute(interaction: discord.Interaction):
         return
     for category in guild.categories:
         try:
-            await category.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+            await category.set_permissions(
+                mute_role, 
+                send_messages=False, 
+                speak=False, 
+                add_reactions=False, 
+                use_external_emojis=False,
+                create_public_threads=False,
+                create_private_threads=False,
+                connect=False
+            )
         except Exception:
             pass
     for channel in guild.channels:
         try:
-            await channel.set_permissions(mute_role, send_messages=False, speak=False, add_reactions=False)
+            await channel.set_permissions(
+                mute_role, 
+                send_messages=False, 
+                speak=False, 
+                add_reactions=False, 
+                use_external_emojis=False,
+                create_public_threads=False,
+                create_private_threads=False,
+                connect=False
+            )
         except Exception:
             pass
     embed = discord.Embed(
-        description=f"> Permissions du rôle {mute_role.mention} réappliquées sur tous les salons et catégories.",
+        description=f"> Permissions du rôle {mute_role.mention} réappliquées sur tous les salons et catégories avec restrictions complètes.",
         color=EMBED_COLOR
     )
     await interaction.followup.send(embed=embed, ephemeral=True)
@@ -3900,7 +3936,7 @@ async def help_command(interaction: discord.Interaction):
         ("/classement_eco", "Affiche le classement des pays par budget."),
         ("/payer", "Transfère des fonds vers un autre pays ou la banque."),
         ("/creer_emprunt", "Crée un emprunt avec un tiers."),
-        ("/liste_emprunt", "Liste tes emprunts en cours avec leur statut."),
+        ("/liste_emprunt", "Liste tes emprunts en cours."),
         ("/remboursement", "Effectue un paiement sur un emprunt en cours."),
     ]
     
