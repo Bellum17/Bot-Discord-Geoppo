@@ -1045,6 +1045,7 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Judaïsme", value="1417624442905038859"),
     discord.app_commands.Choice(name="Hindouisme", value="1417625845425766562"),
     discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
+    discord.app_commands.Choice(name="Shintoïsme", value="1424945271858528326"),
     discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
     discord.app_commands.Choice(name="Athéisme", value="1417626362738512022"),
     discord.app_commands.Choice(name="Tengrisme", value="1424789872329101498"),
@@ -1060,6 +1061,7 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Judaïsme", value="1417624442905038859"),
     discord.app_commands.Choice(name="Hindouisme", value="1417625845425766562"),
     discord.app_commands.Choice(name="Bouddhisme", value="1417626007770366123"),
+    discord.app_commands.Choice(name="Shintoïsme", value="1424945271858528326"),
     discord.app_commands.Choice(name="Laïcisme", value="1417626204885745805"),
     discord.app_commands.Choice(name="Athéisme", value="1417626362738512022"),
     discord.app_commands.Choice(name="Tengrisme", value="1424789872329101498"),
@@ -2148,11 +2150,9 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                 roles_religion = [
                     1417622211329659010, 1417622670702280845, 1417622925745586206,
                     1417623400695988245, 1417624032131682304, 1417624442905038859,
-                    1417625845425766562, 1417626007770366123, 1417626204885745805,
-                    1417626362738512022,  # Athéisme
-                    1424789872329101498,  # Tengrisme
-                    1419446723310256138,  # Foi des Sept
-                    1424783855331577856   # Dieu Noyé
+                    1417625845425766562, 1417626007770366123, 1424945271858528326,
+                    1417626204885745805, 1417626362738512022, 1424789872329101498,
+                    1419446723310256138, 1424783855331577856
                 ]
             for role_id in roles_religion:
                 role_religion = interaction.guild.get_role(role_id)
