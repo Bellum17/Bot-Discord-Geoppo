@@ -1051,6 +1051,7 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Tengrisme", value="1424789872329101498"),
     discord.app_commands.Choice(name="Foi des Sept", value="1419446723310256138"),
     discord.app_commands.Choice(name="Dieu Noyé", value="1424783855331577856"),
+    discord.app_commands.Choice(name="Culte de Solaria", value="1425197116858437653"),
 ])
 @app_commands.choices(religion=[
     discord.app_commands.Choice(name="Catholicisme", value="1417622211329659010"),
@@ -1067,6 +1068,7 @@ def convert_to_bold_letters(text):
     discord.app_commands.Choice(name="Tengrisme", value="1424789872329101498"),
     discord.app_commands.Choice(name="Foi des Sept", value="1419446723310256138"),
     discord.app_commands.Choice(name="Dieu Noyé", value="1424783855331577856"),
+    discord.app_commands.Choice(name="Culte de Solaria", value="1425197116858437653"),
 ])
 async def creer_pays(
     interaction: discord.Interaction, 
@@ -2152,7 +2154,7 @@ async def supprimer_pays(interaction: discord.Interaction, pays: discord.Role, r
                     1417623400695988245, 1417624032131682304, 1417624442905038859,
                     1417625845425766562, 1417626007770366123, 1424945271858528326,
                     1417626204885745805, 1417626362738512022, 1424789872329101498,
-                    1419446723310256138, 1424783855331577856
+                    1419446723310256138, 1424783855331577856, 1425197116858437653
                 ]
             for role_id in roles_religion:
                 role_religion = interaction.guild.get_role(role_id)
