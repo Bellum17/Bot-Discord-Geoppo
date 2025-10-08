@@ -4266,6 +4266,7 @@ async def warn(interaction: discord.Interaction, utilisateur: discord.Member, ra
         color=SANCTION_COLOR,
         timestamp=datetime.datetime.now()
     )
+    embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     
     await interaction.followup.send(embed=embed)
     
@@ -4279,6 +4280,7 @@ async def warn(interaction: discord.Interaction, utilisateur: discord.Member, ra
         color=SANCTION_COLOR,
         timestamp=datetime.datetime.now()
     )
+    log_embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     
     await send_mute_log(interaction.guild, log_embed)
 
@@ -4300,6 +4302,7 @@ async def user_warn(interaction: discord.Interaction, utilisateur: discord.Membe
             description=f"**Utilisateur :** {utilisateur.mention}\n**Aucun avertissement trouvé.**",
             color=SANCTION_COLOR
         )
+        embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
         await interaction.followup.send(embed=embed)
         return
     
@@ -4315,6 +4318,7 @@ async def user_warn(interaction: discord.Interaction, utilisateur: discord.Membe
         color=SANCTION_COLOR,
         timestamp=datetime.datetime.now()
     )
+    embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     
     # Ajouter chaque avertissement
     for warn_data in warns_list:
@@ -4352,6 +4356,7 @@ async def remove_warn(interaction: discord.Interaction, utilisateur: discord.Mem
             description=f"**Utilisateur :** {utilisateur.mention}\n**Aucun avertissement trouvé.**",
             color=SANCTION_COLOR
         )
+        embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
         await interaction.followup.send(embed=embed)
         return
     
@@ -4372,6 +4377,7 @@ async def remove_warn(interaction: discord.Interaction, utilisateur: discord.Mem
             description=f"**Avertissement #{numero_avertissement} introuvable** pour {utilisateur.mention}.",
             color=SANCTION_COLOR
         )
+        embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
         await interaction.followup.send(embed=embed)
         return
     
@@ -4389,6 +4395,7 @@ async def remove_warn(interaction: discord.Interaction, utilisateur: discord.Mem
         color=SANCTION_COLOR,
         timestamp=datetime.datetime.now()
     )
+    embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     
     await interaction.followup.send(embed=embed)
     
@@ -4402,6 +4409,7 @@ async def remove_warn(interaction: discord.Interaction, utilisateur: discord.Mem
         color=SANCTION_COLOR,
         timestamp=datetime.datetime.now()
     )
+    log_embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     
     await send_mute_log(interaction.guild, log_embed)
 
