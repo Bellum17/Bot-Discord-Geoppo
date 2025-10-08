@@ -1256,6 +1256,8 @@ async def creer_pays(
         channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-') }"
         
         print(f"[DEBUG] Création du salon principal : {channel_name}")
+        print(f"[DEBUG] Catégorie utilisée : {categorie.name} (ID: {categorie.id})")
+        
         # Créer le salon avec synchronisation de la catégorie
         channel = await interaction.guild.create_text_channel(
             name=channel_name,
@@ -1263,7 +1265,12 @@ async def creer_pays(
             # Pas d'overwrites = synchronisation automatique avec la catégorie
         )
         
-        # Ajouter les permissions spécifiques du rôle de pays
+        print(f"[DEBUG] Salon créé, permissions héritées de la catégorie")
+        # Petit délai pour assurer la synchronisation
+        await asyncio.sleep(0.5)
+        
+        # Ajouter les permissions spécifiques du rôle de pays SANS écraser les autres
+        print(f"[DEBUG] Ajout des permissions pour le rôle {role.name}")
         await channel.set_permissions(
             role,
             read_messages=True,
@@ -1278,6 +1285,7 @@ async def creer_pays(
             manage_webhooks=True,
             manage_messages=True
         )
+        print(f"[DEBUG] Permissions du rôle de pays appliquées")
         pays_log_channel_data[str(role.id)] = channel.id
         save_pays_log_channel(pays_log_channel_data)
         print(f"[DEBUG] Salon principal créé : {channel.name}")
@@ -1410,6 +1418,9 @@ async def creer_pays(
                 formatted_secret_name = convert_to_bold_letters(nom_salon_secret)
                 secret_channel_name = f"【{emoji_pays}】・{formatted_secret_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_secret_name.lower().replace(' ', '-') }"
                 
+                print(f"[DEBUG] Création du salon secret : {secret_channel_name}")
+                print(f"[DEBUG] Catégorie secrète utilisée : {categorie_secret.name} (ID: {categorie_secret.id})")
+                
                 # Créer le salon avec synchronisation de la catégorie
                 secret_channel = await interaction.guild.create_text_channel(
                     name=secret_channel_name,
@@ -1417,7 +1428,12 @@ async def creer_pays(
                     # Pas d'overwrites = synchronisation automatique avec la catégorie
                 )
                 
-                # Ajouter les permissions spécifiques du rôle de pays
+                print(f"[DEBUG] Salon secret créé, permissions héritées de la catégorie")
+                # Petit délai pour assurer la synchronisation
+                await asyncio.sleep(0.5)
+                
+                # Ajouter les permissions spécifiques du rôle de pays SANS écraser les autres
+                print(f"[DEBUG] Ajout des permissions pour le rôle {role.name} sur le salon secret")
                 await secret_channel.set_permissions(
                     role,
                     read_messages=True,
@@ -1432,6 +1448,7 @@ async def creer_pays(
                     manage_webhooks=True,
                     manage_messages=True
                 )
+                print(f"[DEBUG] Permissions du rôle de pays appliquées sur le salon secret")
             except Exception as e:
                 print(f"[ERROR] Création salon secret : {e}")
                 await interaction.followup.send(f"> Pays créé, mais erreur lors de la création du salon secret : {e}", ephemeral=True)
@@ -1526,6 +1543,8 @@ async def creer_pays(
         channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-') }"
         
         print(f"[DEBUG] Création du salon principal : {channel_name}")
+        print(f"[DEBUG] Catégorie utilisée : {categorie.name} (ID: {categorie.id})")
+        
         # Créer le salon avec synchronisation de la catégorie
         channel = await interaction.guild.create_text_channel(
             name=channel_name,
@@ -1533,7 +1552,12 @@ async def creer_pays(
             # Pas d'overwrites = synchronisation automatique avec la catégorie
         )
         
-        # Ajouter les permissions spécifiques du rôle de pays
+        print(f"[DEBUG] Salon créé, permissions héritées de la catégorie")
+        # Petit délai pour assurer la synchronisation
+        await asyncio.sleep(0.5)
+        
+        # Ajouter les permissions spécifiques du rôle de pays SANS écraser les autres
+        print(f"[DEBUG] Ajout des permissions pour le rôle {role.name}")
         await channel.set_permissions(
             role,
             read_messages=True,
@@ -1548,6 +1572,7 @@ async def creer_pays(
             manage_webhooks=True,
             manage_messages=True
         )
+        print(f"[DEBUG] Permissions du rôle de pays appliquées")
         pays_log_channel_data[str(role.id)] = channel.id
         save_pays_log_channel(pays_log_channel_data)
         print(f"[DEBUG] Salon principal créé : {channel.name}")
@@ -1638,6 +1663,9 @@ async def creer_pays(
             formatted_secret_name = convert_to_bold_letters(nom_salon_secret)
             secret_channel_name = f"【{emoji_pays}】・{formatted_secret_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_secret_name.lower().replace(' ', '-')}"
             
+            print(f"[DEBUG] Création du salon secret : {secret_channel_name}")
+            print(f"[DEBUG] Catégorie secrète utilisée : {categorie_secret.name} (ID: {categorie_secret.id})")
+            
             # Créer le salon avec synchronisation de la catégorie
             secret_channel = await interaction.guild.create_text_channel(
                 name=secret_channel_name,
@@ -1645,7 +1673,12 @@ async def creer_pays(
                 # Pas d'overwrites = synchronisation automatique avec la catégorie
             )
             
-            # Ajouter les permissions spécifiques du rôle de pays
+            print(f"[DEBUG] Salon secret créé, permissions héritées de la catégorie")
+            # Petit délai pour assurer la synchronisation
+            await asyncio.sleep(0.5)
+            
+            # Ajouter les permissions spécifiques du rôle de pays SANS écraser les autres
+            print(f"[DEBUG] Ajout des permissions pour le rôle {role.name} sur le salon secret")
             await secret_channel.set_permissions(
                 role,
                 read_messages=True,
@@ -1660,6 +1693,7 @@ async def creer_pays(
                 manage_webhooks=True,
                 manage_messages=True
             )
+            print(f"[DEBUG] Permissions du rôle de pays appliquées sur le salon secret")
         
         # Gérer les données du pays
         role_id = str(role.id)
@@ -4120,6 +4154,7 @@ async def help_command(interaction: discord.Interaction):
             ("/setlogmute", "Définit le salon de logs pour les sanctions."),
             ("/set_lvl", "Active ou désactive le système de niveaux."),
             ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
+            ("/categorie", "Applique les permissions de catégorie aux salons."),
         ]
         
         outils_rp = [
@@ -4498,6 +4533,142 @@ async def bonus_xp(interaction: discord.Interaction):
     )
     
     await send_log(interaction.guild, embed=log_embed)
+
+@bot.tree.command(name="categorie", description="Applique les permissions de catégorie aux salons (en plus des permissions existantes)")
+@app_commands.checks.has_permissions(administrator=True)
+async def categorie(interaction: discord.Interaction, categorie: discord.CategoryChannel, salon: discord.TextChannel = None):
+    """Applique les permissions de catégorie aux salons en conservant les permissions existantes."""
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        # Déterminer les salons à traiter
+        if salon:
+            # Un salon spécifique
+            channels_to_process = [salon]
+            scope_text = f"salon {salon.mention}"
+        else:
+            # Tous les salons de la catégorie
+            channels_to_process = [channel for channel in categorie.channels if isinstance(channel, discord.TextChannel)]
+            scope_text = f"catégorie **{categorie.name}** ({len(channels_to_process)} salons)"
+        
+        if not channels_to_process:
+            embed = discord.Embed(
+                title="⚠️ Aucun salon trouvé",
+                description="Aucun salon textuel trouvé dans cette catégorie.",
+                color=EMBED_COLOR
+            )
+            await interaction.followup.send(embed=embed)
+            return
+        
+        print(f"[DEBUG] Application des permissions de catégorie {categorie.name} sur {len(channels_to_process)} salon(s)")
+        
+        # Traitement des salons
+        processed_count = 0
+        error_count = 0
+        
+        for channel in channels_to_process:
+            try:
+                print(f"[DEBUG] Traitement du salon {channel.name}")
+                
+                # Récupérer les permissions actuelles du salon
+                current_overwrites = dict(channel.overwrites)
+                print(f"[DEBUG] Permissions actuelles: {len(current_overwrites)} règles")
+                
+                # Récupérer les permissions de la catégorie
+                category_overwrites = dict(categorie.overwrites)
+                print(f"[DEBUG] Permissions de catégorie: {len(category_overwrites)} règles")
+                
+                # Fusionner les permissions : catégorie en base + salon par-dessus
+                merged_overwrites = {}
+                
+                # 1. Ajouter toutes les permissions de catégorie
+                for target, overwrite in category_overwrites.items():
+                    merged_overwrites[target] = overwrite
+                    print(f"[DEBUG] Ajout permission catégorie pour {target}")
+                
+                # 2. Appliquer les permissions spécifiques du salon par-dessus
+                for target, overwrite in current_overwrites.items():
+                    if target in merged_overwrites:
+                        # Fusionner les permissions (permissions du salon prioritaires)
+                        category_perms = merged_overwrites[target]
+                        
+                        # Créer un nouvel overwrite qui combine les deux
+                        combined_perms = {}
+                        
+                        # Commencer avec les permissions de catégorie
+                        for perm_name, perm_value in category_perms:
+                            combined_perms[perm_name] = perm_value
+                        
+                        # Appliquer les permissions du salon par-dessus (priorité)
+                        for perm_name, perm_value in overwrite:
+                            if perm_value is not None:  # Seulement si explicitement défini
+                                combined_perms[perm_name] = perm_value
+                        
+                        # Créer le nouvel overwrite
+                        merged_overwrites[target] = discord.PermissionOverwrite(**combined_perms)
+                        print(f"[DEBUG] Fusion des permissions pour {target}")
+                    else:
+                        # Nouvelle permission spécifique au salon
+                        merged_overwrites[target] = overwrite
+                        print(f"[DEBUG] Ajout permission salon pour {target}")
+                
+                # Appliquer les nouvelles permissions
+                await channel.edit(overwrites=merged_overwrites)
+                processed_count += 1
+                print(f"[DEBUG] Permissions appliquées avec succès sur {channel.name}")
+                
+                # Petit délai pour éviter les rate limits
+                await asyncio.sleep(0.1)
+                
+            except Exception as e:
+                error_count += 1
+                print(f"[ERROR] Erreur lors du traitement de {channel.name}: {e}")
+        
+        # Créer l'embed de confirmation
+        if error_count == 0:
+            embed = discord.Embed(
+                title="✅ Permissions de catégorie appliquées",
+                description=f"**Cible :** {scope_text}\n"
+                           f"**Salons traités :** {processed_count}\n"
+                           f"**Catégorie source :** {categorie.mention}\n"
+                           f"**Permissions :** Catégorie + permissions existantes conservées",
+                color=EMBED_COLOR,
+                timestamp=datetime.datetime.now()
+            )
+        else:
+            embed = discord.Embed(
+                title="⚠️ Permissions partiellement appliquées",
+                description=f"**Cible :** {scope_text}\n"
+                           f"**Salons traités :** {processed_count}\n"
+                           f"**Erreurs :** {error_count}\n"
+                           f"**Catégorie source :** {categorie.mention}",
+                color=EMBED_COLOR,
+                timestamp=datetime.datetime.now()
+            )
+        
+        await interaction.followup.send(embed=embed)
+        
+        # Log dans le salon des logs
+        log_embed = discord.Embed(
+            title="🔧 Permissions de catégorie appliquées",
+            description=f"**Administrateur :** {interaction.user.mention}\n"
+                       f"**Cible :** {scope_text}\n"
+                       f"**Catégorie source :** {categorie.mention}\n"
+                       f"**Salons traités :** {processed_count}/{len(channels_to_process)}",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        
+        await send_log(interaction.guild, embed=log_embed)
+        
+    except Exception as e:
+        embed = discord.Embed(
+            title="❌ Erreur",
+            description=f"Une erreur est survenue lors de l'application des permissions :\n```{str(e)}```",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
+        print(f"[ERROR] Erreur dans la commande categorie: {e}")
 
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
