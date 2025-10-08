@@ -65,6 +65,7 @@ if not TOKEN:
 # Configuration du répertoire de base et des constantes
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EMBED_COLOR = 0xefe7c5
+SANCTION_COLOR = 0x162e50  # Couleur pour les sanctions (mute, ban, warn)
 IMAGE_URL = "https://zupimages.net/up/21/03/vl8j.png"
 MONNAIE_EMOJI = "<:Monnaie:1412039375063355473>"
 INVISIBLE_CHAR = "⠀"
@@ -103,6 +104,7 @@ TRANSACTION_LOG_FILE = os.path.join(DATA_DIR, "transactions.json")
 PAYS_LOG_FILE = os.path.join(DATA_DIR, "pays_log_channel.json")
 PAYS_IMAGES_FILE = os.path.join(DATA_DIR, "pays_images.json")
 MUTE_LOG_FILE = os.path.join(DATA_DIR, "mute_log_channel.json")
+WARNINGS_FILE = os.path.join(DATA_DIR, "warnings.json")
 
 # === XP/LEVEL SYSTEM ===
 LVL_FILE = os.path.join(DATA_DIR, "levels.json")
@@ -175,6 +177,43 @@ def get_progress_bar(xp, level):
     else:
         bar += "<:Barre3_Vide:1417667902471147520>"
     return f"{bar} — {percent}%"
+
+# === WARNING SYSTEM ===
+def load_warnings():
+    if not os.path.exists(WARNINGS_FILE):
+        with open(WARNINGS_FILE, "w") as f:
+            json.dump({}, f)
+    try:
+        with open(WARNINGS_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des avertissements: {e}")
+        return {}
+
+def save_warnings(warnings_data):
+    try:
+        with open(WARNINGS_FILE, "w") as f:
+            json.dump(warnings_data, f, indent=2)
+        # Backup PostgreSQL
+        try:
+            import psycopg2, os
+            DATABASE_URL = os.getenv("DATABASE_URL")
+            if DATABASE_URL:
+                with psycopg2.connect(DATABASE_URL) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM json_backups WHERE filename = %s", ("warnings.json",))
+                        with open(WARNINGS_FILE, "r") as f:
+                            content = f.read()
+                        cur.execute("""
+                            INSERT INTO json_backups (filename, content, updated_at)
+                            VALUES (%s, %s, NOW())
+                            ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                        """, ("warnings.json", content))
+                    conn.commit()
+        except Exception as e:
+            print(f"[DEBUG] Erreur sauvegarde PostgreSQL warnings: {e}")
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde des avertissements: {e}")
 
 # Configuration PIB
 PIB_DEFAULT = 0
@@ -294,6 +333,7 @@ pib_data = {}
 pays_log_channel_data = {}
 pays_images = {}
 mute_log_channel_data = {}
+warnings = {}
 
 # Chargement des balances et autres données après la définition de la fonction
 # (L'appel à load_all_data() est déplacé après la définition de la fonction)
@@ -308,7 +348,7 @@ def format_number(number):
 # Fonction pour charger toutes les données
 def load_all_data():
     """Charge toutes les données nécessaires au démarrage."""
-    global balances, log_channel_data, message_log_channel_data, loans, pib_data, pays_log_channel_data, pays_images, mute_log_channel_data
+    global balances, log_channel_data, message_log_channel_data, loans, pib_data, pays_log_channel_data, pays_images, mute_log_channel_data, warnings
     
     # Chargement de toutes les données
     balances.update(load_balances())
@@ -318,6 +358,7 @@ def load_all_data():
     pib_data.update(load_pib())
     pays_log_channel_data.update(load_pays_log_channel())
     pays_images.update(load_pays_images())
+    warnings.update(load_warnings())
 ## Fonction de chargement du canal de statut supprimée (obsolète)
 
 def load_pays_images():
@@ -1191,22 +1232,29 @@ async def creer_pays(
         # Création du salon principal
         formatted_name = convert_to_bold_letters(nom)
         channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-') }"
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            role: discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=True,
-                read_message_history=True,
-                embed_links=True,
-                attach_files=True,
-                add_reactions=True
-            )
-        }
+        
         print(f"[DEBUG] Création du salon principal : {channel_name}")
+        # Créer le salon avec synchronisation de la catégorie
         channel = await interaction.guild.create_text_channel(
             name=channel_name,
-            category=categorie,
-            overwrites=overwrites
+            category=categorie
+            # Pas d'overwrites = synchronisation automatique avec la catégorie
+        )
+        
+        # Ajouter les permissions spécifiques du rôle de pays
+        await channel.set_permissions(
+            role,
+            read_messages=True,
+            send_messages=True,
+            read_message_history=True,
+            embed_links=True,
+            attach_files=True,
+            add_reactions=True,
+            send_messages_in_threads=True,
+            create_public_threads=True,
+            create_private_threads=True,
+            manage_webhooks=True,
+            manage_messages=True
         )
         pays_log_channel_data[str(role.id)] = channel.id
         save_pays_log_channel(pays_log_channel_data)
@@ -1339,18 +1387,28 @@ async def creer_pays(
             try:
                 formatted_secret_name = convert_to_bold_letters(nom_salon_secret)
                 secret_channel_name = f"【{emoji_pays}】・{formatted_secret_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_secret_name.lower().replace(' ', '-') }"
-                secret_overwrites = {
-                    interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                    role: discord.PermissionOverwrite(
-                        read_messages=True,
-                        manage_webhooks=True,
-                        manage_messages=True
-                    )
-                }
+                
+                # Créer le salon avec synchronisation de la catégorie
                 secret_channel = await interaction.guild.create_text_channel(
                     name=secret_channel_name,
-                    category=categorie_secret,
-                    overwrites=secret_overwrites
+                    category=categorie_secret
+                    # Pas d'overwrites = synchronisation automatique avec la catégorie
+                )
+                
+                # Ajouter les permissions spécifiques du rôle de pays
+                await secret_channel.set_permissions(
+                    role,
+                    read_messages=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    embed_links=True,
+                    attach_files=True,
+                    add_reactions=True,
+                    send_messages_in_threads=True,
+                    create_public_threads=True,
+                    create_private_threads=True,
+                    manage_webhooks=True,
+                    manage_messages=True
                 )
             except Exception as e:
                 print(f"[ERROR] Création salon secret : {e}")
@@ -1444,18 +1502,29 @@ async def creer_pays(
         # Créer le salon principal
         formatted_name = convert_to_bold_letters(nom)
         channel_name = f"【{emoji_pays}】・{formatted_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_name.lower().replace(' ', '-') }"
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            role: discord.PermissionOverwrite(
-                read_messages=True, send_messages=True, read_message_history=True,
-                embed_links=True, attach_files=True, add_reactions=True
-            )
-        }
+        
         print(f"[DEBUG] Création du salon principal : {channel_name}")
+        # Créer le salon avec synchronisation de la catégorie
         channel = await interaction.guild.create_text_channel(
             name=channel_name,
-            category=categorie,
-            overwrites=overwrites
+            category=categorie
+            # Pas d'overwrites = synchronisation automatique avec la catégorie
+        )
+        
+        # Ajouter les permissions spécifiques du rôle de pays
+        await channel.set_permissions(
+            role,
+            read_messages=True,
+            send_messages=True,
+            read_message_history=True,
+            embed_links=True,
+            attach_files=True,
+            add_reactions=True,
+            send_messages_in_threads=True,
+            create_public_threads=True,
+            create_private_threads=True,
+            manage_webhooks=True,
+            manage_messages=True
         )
         pays_log_channel_data[str(role.id)] = channel.id
         save_pays_log_channel(pays_log_channel_data)
@@ -1546,18 +1615,28 @@ async def creer_pays(
         if nom_salon_secret and categorie_secret:
             formatted_secret_name = convert_to_bold_letters(nom_salon_secret)
             secret_channel_name = f"【{emoji_pays}】・{formatted_secret_name.lower().replace(' ', '-')}" if emoji_pays else f"【】・{formatted_secret_name.lower().replace(' ', '-')}"
-            secret_overwrites = {
-                interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                role: discord.PermissionOverwrite(
-                    read_messages=True,
-                    manage_webhooks=True,
-                    manage_messages=True
-                )
-            }
+            
+            # Créer le salon avec synchronisation de la catégorie
             secret_channel = await interaction.guild.create_text_channel(
                 name=secret_channel_name,
-                category=categorie_secret,
-                overwrites=secret_overwrites
+                category=categorie_secret
+                # Pas d'overwrites = synchronisation automatique avec la catégorie
+            )
+            
+            # Ajouter les permissions spécifiques du rôle de pays
+            await secret_channel.set_permissions(
+                role,
+                read_messages=True,
+                send_messages=True,
+                read_message_history=True,
+                embed_links=True,
+                attach_files=True,
+                add_reactions=True,
+                send_messages_in_threads=True,
+                create_public_threads=True,
+                create_private_threads=True,
+                manage_webhooks=True,
+                manage_messages=True
             )
         
         # Gérer les données du pays
@@ -4008,6 +4087,9 @@ async def help_command(interaction: discord.Interaction):
             ("/unmute", "Retire le mute d'un membre."),
             ("/ban", "Bannit un membre du serveur après confirmation."),
             ("/setpermission_mute", "Réapplique les permissions du rôle mute partout."),
+            ("/warn", "Donne un avertissement à un utilisateur."),
+            ("/user_warn", "Affiche les avertissements d'un utilisateur."),
+            ("/remove_warn", "Retire un avertissement spécifique."),
         ]
         
         configuration_logs = [
@@ -4136,6 +4218,192 @@ async def calendrier_update_task():
     # Stop si Décembre 2/2 passé
     if calendrier_data["mois_index"] >= len(CALENDRIER_MONTHS):
         calendrier_update_task.stop()
+
+# === COMMANDES D'AVERTISSEMENT ===
+
+@bot.tree.command(name="warn", description="Donne un avertissement à un utilisateur")
+@app_commands.checks.has_permissions(administrator=True)
+async def warn(interaction: discord.Interaction, utilisateur: discord.Member, raison: str):
+    """Donne un avertissement à un utilisateur."""
+    global warnings
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    user_id = str(utilisateur.id)
+    guild_id = str(interaction.guild.id)
+    
+    # Initialiser les données du serveur si nécessaire
+    if guild_id not in warnings:
+        warnings[guild_id] = {}
+    
+    # Initialiser les données de l'utilisateur si nécessaire
+    if user_id not in warnings[guild_id]:
+        warnings[guild_id][user_id] = {"warns": [], "next_id": 1}
+    
+    # Créer l'avertissement
+    warn_id = warnings[guild_id][user_id]["next_id"]
+    warn_data = {
+        "id": warn_id,
+        "raison": raison,
+        "moderateur": interaction.user.id,
+        "date": datetime.datetime.now().isoformat()
+    }
+    
+    # Ajouter l'avertissement
+    warnings[guild_id][user_id]["warns"].append(warn_data)
+    warnings[guild_id][user_id]["next_id"] += 1
+    
+    # Sauvegarder
+    save_warnings(warnings)
+    
+    # Créer l'embed de confirmation
+    embed = discord.Embed(
+        title="⚠️ Avertissement donné",
+        description=f"**Utilisateur :** {utilisateur.mention}\n"
+                   f"**Avertissement :** #{warn_id}\n"
+                   f"**Raison :** {raison}\n"
+                   f"**Modérateur :** {interaction.user.mention}",
+        color=SANCTION_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await interaction.followup.send(embed=embed)
+    
+    # Log dans le salon des sanctions
+    log_embed = discord.Embed(
+        title="⚠️ Avertissement",
+        description=f"**Utilisateur :** {utilisateur.mention} ({utilisateur.id})\n"
+                   f"**Avertissement :** #{warn_id}\n"
+                   f"**Raison :** {raison}\n"
+                   f"**Modérateur :** {interaction.user.mention}",
+        color=SANCTION_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await send_mute_log(interaction.guild, log_embed)
+
+@bot.tree.command(name="user_warn", description="Affiche les avertissements d'un utilisateur")
+@app_commands.checks.has_permissions(administrator=True)
+async def user_warn(interaction: discord.Interaction, utilisateur: discord.Member):
+    """Affiche les avertissements d'un utilisateur."""
+    global warnings
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    user_id = str(utilisateur.id)
+    guild_id = str(interaction.guild.id)
+    
+    # Vérifier s'il y a des avertissements
+    if guild_id not in warnings or user_id not in warnings[guild_id] or not warnings[guild_id][user_id]["warns"]:
+        embed = discord.Embed(
+            title="📋 Avertissements",
+            description=f"**Utilisateur :** {utilisateur.mention}\n**Aucun avertissement trouvé.**",
+            color=SANCTION_COLOR
+        )
+        await interaction.followup.send(embed=embed)
+        return
+    
+    # Créer la liste des avertissements
+    warns_list = warnings[guild_id][user_id]["warns"]
+    warn_count = len(warns_list)
+    
+    # Créer l'embed
+    embed = discord.Embed(
+        title="📋 Avertissements",
+        description=f"**Utilisateur :** {utilisateur.mention}\n"
+                   f"**Nombre total :** {warn_count} avertissement{'s' if warn_count > 1 else ''}",
+        color=SANCTION_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    # Ajouter chaque avertissement
+    for warn_data in warns_list:
+        moderateur = interaction.guild.get_member(warn_data["moderateur"])
+        mod_name = moderateur.display_name if moderateur else "Modérateur inconnu"
+        
+        date_obj = datetime.datetime.fromisoformat(warn_data["date"])
+        date_str = date_obj.strftime("%d/%m/%Y à %H:%M")
+        
+        embed.add_field(
+            name=f"⚠️ Avertissement #{warn_data['id']}",
+            value=f"**Raison :** {warn_data['raison']}\n"
+                  f"**Modérateur :** {mod_name}\n"
+                  f"**Date :** {date_str}",
+            inline=False
+        )
+    
+    await interaction.followup.send(embed=embed)
+
+@bot.tree.command(name="remove_warn", description="Retire un avertissement spécifique")
+@app_commands.checks.has_permissions(administrator=True)
+async def remove_warn(interaction: discord.Interaction, utilisateur: discord.Member, numero_avertissement: int):
+    """Retire un avertissement spécifique."""
+    global warnings
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    user_id = str(utilisateur.id)
+    guild_id = str(interaction.guild.id)
+    
+    # Vérifier s'il y a des avertissements
+    if guild_id not in warnings or user_id not in warnings[guild_id] or not warnings[guild_id][user_id]["warns"]:
+        embed = discord.Embed(
+            title="❌ Erreur",
+            description=f"**Utilisateur :** {utilisateur.mention}\n**Aucun avertissement trouvé.**",
+            color=SANCTION_COLOR
+        )
+        await interaction.followup.send(embed=embed)
+        return
+    
+    # Chercher l'avertissement à supprimer
+    warns_list = warnings[guild_id][user_id]["warns"]
+    warn_to_remove = None
+    warn_index = None
+    
+    for i, warn_data in enumerate(warns_list):
+        if warn_data["id"] == numero_avertissement:
+            warn_to_remove = warn_data
+            warn_index = i
+            break
+    
+    if warn_to_remove is None:
+        embed = discord.Embed(
+            title="❌ Erreur",
+            description=f"**Avertissement #{numero_avertissement} introuvable** pour {utilisateur.mention}.",
+            color=SANCTION_COLOR
+        )
+        await interaction.followup.send(embed=embed)
+        return
+    
+    # Supprimer l'avertissement
+    warnings[guild_id][user_id]["warns"].pop(warn_index)
+    save_warnings(warnings)
+    
+    # Créer l'embed de confirmation
+    embed = discord.Embed(
+        title="✅ Avertissement supprimé",
+        description=f"**Utilisateur :** {utilisateur.mention}\n"
+                   f"**Avertissement :** #{numero_avertissement}\n"
+                   f"**Raison originale :** {warn_to_remove['raison']}\n"
+                   f"**Supprimé par :** {interaction.user.mention}",
+        color=SANCTION_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await interaction.followup.send(embed=embed)
+    
+    # Log dans le salon des sanctions
+    log_embed = discord.Embed(
+        title="🗑️ Avertissement supprimé",
+        description=f"**Utilisateur :** {utilisateur.mention} ({utilisateur.id})\n"
+                   f"**Avertissement :** #{numero_avertissement}\n"
+                   f"**Raison originale :** {warn_to_remove['raison']}\n"
+                   f"**Supprimé par :** {interaction.user.mention}",
+        color=SANCTION_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await send_mute_log(interaction.guild, log_embed)
 
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
