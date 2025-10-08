@@ -334,6 +334,7 @@ pays_log_channel_data = {}
 pays_images = {}
 mute_log_channel_data = {}
 warnings = {}
+bonus_xp_active = {}  # {guild_id: end_time}
 
 # Chargement des balances et autres données après la définition de la fonction
 # (L'appel à load_all_data() est déplacé après la définition de la fonction)
@@ -833,7 +834,7 @@ xp_system_active = False  # Obsolète, remplacé par xp_system_status
 
 @bot.event
 async def on_message(message):
-    global levels, xp_system_status
+    global levels, xp_system_status, bonus_xp_active
     if message.author.bot or not message.guild:
         return
     guild_id = str(message.guild.id)
@@ -843,8 +844,20 @@ async def on_message(message):
     user_id = str(message.author.id)
     if user_id not in levels:
         levels[user_id] = {"xp": 0, "level": 1}
+    
+    # Vérifier si le bonus XP est actif et encore valide
+    bonus_active = False
+    if guild_id in bonus_xp_active:
+        import time
+        if time.time() < bonus_xp_active[guild_id]:
+            bonus_active = True
+        else:
+            # Bonus expiré, le supprimer
+            del bonus_xp_active[guild_id]
+    
     # Calcul XP : 1 XP de base + 1 XP tous les 10 caractères
     char_count = len(message.content)
+    
     # Bonus XP par grade acquis
     palier_roles = {
         10: 1417893183903502468,
@@ -864,14 +877,23 @@ async def on_message(message):
         for i, role_id in enumerate(palier_roles.values(), start=1):
             if discord.utils.get(member.roles, id=role_id):
                 bonus_grade += i
+    
     # Rôle spécial
     special_role_id = 1393303261519417385
     has_special = member and discord.utils.get(member.roles, id=special_role_id)
+    
+    # XP de base
     xp_chair = char_count // 10  # XP chair (1 XP tous les 10 caractères)
     if has_special:
         xp_gain = 5 + (char_count // 15) * 2 + xp_chair
     else:
         xp_gain = 1 + xp_chair + bonus_grade
+    
+    # Ajouter le bonus temporaire si actif
+    if bonus_active:
+        xp_gain += 3  # +3 XP par message
+        xp_gain += (char_count // 10) * 2  # +2 XP tous les 10 caractères (en plus du bonus existant)
+    
     levels[user_id]["xp"] += xp_gain
     xp = levels[user_id]["xp"]
     level = levels[user_id]["level"]
@@ -4412,6 +4434,70 @@ async def remove_warn(interaction: discord.Interaction, utilisateur: discord.Mem
     log_embed.set_image(url="https://zupimages.net/up/21/03/vl8j.png")
     
     await send_mute_log(interaction.guild, log_embed)
+
+@bot.tree.command(name="bonus_xp", description="Active un bonus XP temporaire pendant 2 heures")
+@app_commands.checks.has_permissions(administrator=True)
+async def bonus_xp(interaction: discord.Interaction):
+    """Active un bonus XP de 3 XP par message + 2 XP tous les 10 caractères pendant 2 heures."""
+    global bonus_xp_active
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    guild_id = str(interaction.guild.id)
+    import time
+    
+    # Vérifier si un bonus est déjà actif
+    if guild_id in bonus_xp_active and time.time() < bonus_xp_active[guild_id]:
+        remaining_time = bonus_xp_active[guild_id] - time.time()
+        remaining_minutes = int(remaining_time // 60)
+        remaining_seconds = int(remaining_time % 60)
+        
+        embed = discord.Embed(
+            title="⚠️ Bonus XP déjà actif",
+            description=f"Un bonus XP est déjà en cours !\n"
+                       f"**Temps restant :** {remaining_minutes}m {remaining_seconds}s",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.followup.send(embed=embed)
+        return
+    
+    # Activer le bonus pour 2 heures (7200 secondes)
+    end_time = time.time() + 7200
+    bonus_xp_active[guild_id] = end_time
+    
+    # Calculer l'heure de fin
+    end_datetime = datetime.datetime.fromtimestamp(end_time)
+    end_time_str = end_datetime.strftime("%H:%M:%S")
+    
+    # Créer l'embed de confirmation
+    embed = discord.Embed(
+        title="🚀 Bonus XP activé !",
+        description=f"**Bonus actif pendant 2 heures !**\n\n"
+                   f"📈 **Bonus :**\n"
+                   f"> • +3 XP par message\n"
+                   f"> • +2 XP tous les 10 caractères\n"
+                   f"> • Cumulable avec les autres bonus\n\n"
+                   f"⏰ **Fin prévue :** {end_time_str}\n"
+                   f"👤 **Activé par :** {interaction.user.mention}",
+        color=EMBED_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await interaction.followup.send(embed=embed)
+    
+    # Log dans le salon général
+    log_embed = discord.Embed(
+        title="🚀 Bonus XP activé",
+        description=f"**Durée :** 2 heures\n"
+                   f"**Bonus :** +3 XP/message + 2 XP/10 caractères\n"
+                   f"**Fin prévue :** {end_time_str}\n"
+                   f"**Activé par :** {interaction.user.mention}",
+        color=EMBED_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await send_log(interaction.guild, embed=log_embed)
 
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
