@@ -1215,7 +1215,7 @@ async def creer_pays(
 
         # Créer le rôle
         role_name = f"{emoji_pays}・❝ ｢ {nom} ｣ ❞" if emoji_pays else f"❝ ｢ {nom} ｣ ❞"
-        role_kwargs = {"name": role_name}
+        role_kwargs = {"name": role_name, "mentionable": True}
         if couleur:
             try:
                 if couleur.startswith('#'):
