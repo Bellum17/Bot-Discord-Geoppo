@@ -4497,8 +4497,8 @@ async def bonus_xp(interaction: discord.Interaction):
         await interaction.followup.send(embed=embed)
         return
     
-    # Activer le bonus pour 2 heures (7200 secondes)
-    end_time = time.time() + 7200
+    # Activer le bonus pour 2 heures (7200 secondes = 2 * 60 * 60)
+    end_time = time.time() + (2 * 60 * 60)  # 2 heures explicitement
     bonus_xp_active[guild_id] = end_time
     
     # Calculer l'heure de fin
@@ -4528,6 +4528,74 @@ async def bonus_xp(interaction: discord.Interaction):
                    f"**Bonus :** +3 XP/message + 2 XP/10 caractères\n"
                    f"**Fin prévue :** {end_time_str}\n"
                    f"**Activé par :** {interaction.user.mention}",
+        color=EMBED_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await send_log(interaction.guild, embed=log_embed)
+
+@bot.tree.command(name="remove_bonus_xp", description="Retire le bonus XP actif avant la fin")
+@app_commands.checks.has_permissions(administrator=True)
+async def remove_bonus_xp(interaction: discord.Interaction):
+    """Retire le bonus XP actif avant la fin des 2 heures."""
+    global bonus_xp_active
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    guild_id = str(interaction.guild.id)
+    import time
+    
+    # Vérifier s'il y a un bonus actif
+    if guild_id not in bonus_xp_active:
+        embed = discord.Embed(
+            title="⚠️ Aucun bonus XP actif",
+            description="Il n'y a actuellement aucun bonus XP actif sur ce serveur.",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.followup.send(embed=embed)
+        return
+    
+    # Vérifier si le bonus est encore valide
+    if time.time() >= bonus_xp_active[guild_id]:
+        # Bonus déjà expiré
+        del bonus_xp_active[guild_id]
+        embed = discord.Embed(
+            title="⚠️ Bonus XP déjà expiré",
+            description="Le bonus XP avait déjà expiré naturellement.",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.followup.send(embed=embed)
+        return
+    
+    # Calculer le temps restant avant suppression
+    remaining_time = bonus_xp_active[guild_id] - time.time()
+    remaining_minutes = int(remaining_time // 60)
+    remaining_seconds = int(remaining_time % 60)
+    
+    # Supprimer le bonus
+    del bonus_xp_active[guild_id]
+    
+    # Créer l'embed de confirmation
+    embed = discord.Embed(
+        title="🛑 Bonus XP retiré",
+        description=f"**Le bonus XP a été retiré avec succès !**\n\n"
+                   f"⏰ **Temps restant qui a été annulé :** {remaining_minutes}m {remaining_seconds}s\n"
+                   f"👤 **Retiré par :** {interaction.user.mention}\n\n"
+                   f"💡 *Le système XP reprend son fonctionnement normal.*",
+        color=EMBED_COLOR,
+        timestamp=datetime.datetime.now()
+    )
+    
+    await interaction.followup.send(embed=embed)
+    
+    # Log dans le salon général
+    log_embed = discord.Embed(
+        title="🛑 Bonus XP retiré",
+        description=f"**Retiré par :** {interaction.user.mention}\n"
+                   f"**Temps restant annulé :** {remaining_minutes}m {remaining_seconds}s\n"
+                   f"**Raison :** Arrêt manuel par un administrateur",
         color=EMBED_COLOR,
         timestamp=datetime.datetime.now()
     )
