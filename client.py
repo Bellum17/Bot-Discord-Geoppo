@@ -2174,51 +2174,109 @@ async def balance(interaction: discord.Interaction, role: discord.Role = None):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Commande pour ajouter de l'argent à un rôle
-@bot.tree.command(name="add_argent", description="Ajoute de l'argent à un rôle (admin seulement)")
+@bot.tree.command(name="add_money", description="Ajoute de l'argent au budget ou PIB d'un rôle (admin seulement)")
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(role="Le rôle (pays) à créditer", montant="Montant à ajouter")
-async def add_argent(interaction: discord.Interaction, role: discord.Role, montant: int):
+@app_commands.describe(
+    role="Le rôle (pays) à créditer", 
+    montant="Montant à ajouter",
+    type_argent="Type d'argent à modifier"
+)
+@app_commands.choices(type_argent=[
+    discord.app_commands.Choice(name="Budget", value="budget"),
+    discord.app_commands.Choice(name="PIB", value="pib")
+])
+async def add_money(interaction: discord.Interaction, role: discord.Role, montant: int, type_argent: str):
     if montant <= 0:
         await interaction.response.send_message("> Le montant doit être positif.", ephemeral=True)
         return
+    
     role_id = str(role.id)
-    balances[role_id] = balances.get(role_id, 0) + montant
-    print("[DEBUG] Sauvegarde balances.json après ajout d'argent...")
-    save_balances(balances)
-    print("[DEBUG] Sauvegarde PostgreSQL après ajout d'argent...")
-    save_all_json_to_postgres()
-    embed = discord.Embed(
-        description=f"> {format_number(montant)} {MONNAIE_EMOJI} ajoutés à {role.mention}. Nouveau solde : {format_number(balances[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
-        color=discord.Color.green()
-    )
+    
+    if type_argent == "budget":
+        # Ajouter au budget
+        balances[role_id] = balances.get(role_id, 0) + montant
+        print("[DEBUG] Sauvegarde balances.json après ajout d'argent...")
+        save_balances(balances)
+        print("[DEBUG] Sauvegarde PostgreSQL après ajout d'argent...")
+        save_all_json_to_postgres()
+        
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} ajoutés au **budget** de {role.mention}. Nouveau solde : {format_number(balances[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+            color=discord.Color.green()
+        )
+    else:  # PIB
+        # Ajouter au PIB
+        if role_id not in pib_data:
+            pib_data[role_id] = PIB_DEFAULT
+        pib_data[role_id] += montant
+        print("[DEBUG] Sauvegarde pib.json après ajout de PIB...")
+        save_pib(pib_data)
+        print("[DEBUG] Sauvegarde PostgreSQL après ajout de PIB...")
+        save_all_json_to_postgres()
+        
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} ajoutés au **PIB** de {role.mention}. Nouveau PIB : {format_number(pib_data[role_id])} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+            color=discord.Color.green()
+        )
+    
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Commande pour retirer de l'argent à un rôle (utilisable uniquement par les membres du rôle)
-@bot.tree.command(name="remove_argent", description="Retire de l'argent à un rôle (utilisable uniquement par les membres du rôle)")
+# Commande pour retirer de l'argent à un rôle
+@bot.tree.command(name="remove_money", description="Retire de l'argent du budget ou PIB d'un rôle (admin seulement)")
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(role="Le rôle (pays) à débiter", montant="Montant à retirer")
-async def remove_argent(interaction: discord.Interaction, role: discord.Role, montant: int):
+@app_commands.describe(
+    role="Le rôle (pays) à débiter", 
+    montant="Montant à retirer",
+    type_argent="Type d'argent à modifier"
+)
+@app_commands.choices(type_argent=[
+    discord.app_commands.Choice(name="Budget", value="budget"),
+    discord.app_commands.Choice(name="PIB", value="pib")
+])
+async def remove_money(interaction: discord.Interaction, role: discord.Role, montant: int, type_argent: str):
     if montant <= 0:
         await interaction.response.send_message("> Le montant doit être positif.", ephemeral=True)
         return
     
     role_id = str(role.id)
-    solde = balances.get(role_id, 0)
-    if montant > solde:
-        await interaction.response.send_message("> Le rôle n'a pas assez d'argent.", ephemeral=True)
-        return
     
-    # Vérification et retrait du montant
-    nouveau_solde = solde - montant
-    balances[role_id] = nouveau_solde
-    print("[DEBUG] Sauvegarde balances.json après retrait d'argent...")
-    save_balances(balances)
-    print("[DEBUG] Sauvegarde PostgreSQL après retrait d'argent...")
-    save_all_json_to_postgres()
-    embed = discord.Embed(
-        description=f"> {format_number(montant)} {MONNAIE_EMOJI} retirés à {role.mention}. Nouveau solde : {format_number(nouveau_solde)} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
-        color=discord.Color.red()
-    )
+    if type_argent == "budget":
+        # Retirer du budget
+        solde = balances.get(role_id, 0)
+        if montant > solde:
+            await interaction.response.send_message("> Le rôle n'a pas assez d'argent dans son budget.", ephemeral=True)
+            return
+        
+        nouveau_solde = solde - montant
+        balances[role_id] = nouveau_solde
+        print("[DEBUG] Sauvegarde balances.json après retrait d'argent...")
+        save_balances(balances)
+        print("[DEBUG] Sauvegarde PostgreSQL après retrait d'argent...")
+        save_all_json_to_postgres()
+        
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} retirés du **budget** de {role.mention}. Nouveau solde : {format_number(nouveau_solde)} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+            color=discord.Color.red()
+        )
+    else:  # PIB
+        # Retirer du PIB
+        pib_actuel = pib_data.get(role_id, PIB_DEFAULT)
+        if montant > pib_actuel:
+            await interaction.response.send_message("> Le rôle n'a pas assez d'argent dans son PIB.", ephemeral=True)
+            return
+        
+        nouveau_pib = pib_actuel - montant
+        pib_data[role_id] = nouveau_pib
+        print("[DEBUG] Sauvegarde pib.json après retrait de PIB...")
+        save_pib(pib_data)
+        print("[DEBUG] Sauvegarde PostgreSQL après retrait de PIB...")
+        save_all_json_to_postgres()
+        
+        embed = discord.Embed(
+            description=f"> {format_number(montant)} {MONNAIE_EMOJI} retirés du **PIB** de {role.mention}. Nouveau PIB : {format_number(nouveau_pib)} {MONNAIE_EMOJI}.{INVISIBLE_CHAR}",
+            color=discord.Color.red()
+        )
+    
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="supprimer_pays", description="Supprime un pays, son rôle et son salon")
@@ -4130,8 +4188,8 @@ async def help_command(interaction: discord.Interaction):
         ]
         
         economie_admin = [
-            ("/add_argent", "Ajoute des fonds à un pays."),
-            ("/remove_argent", "Retire des fonds d'un pays (admin ou membre du rôle)."),
+            ("/add_money", "Ajoute des fonds au budget ou PIB d'un pays."),
+            ("/remove_money", "Retire des fonds du budget ou PIB d'un pays."),
             ("/reset_economie", "Réinitialise toutes les données économiques."),
             ("/reset_debt", "Supprime toutes les dettes et emprunts du serveur."),
         ]
