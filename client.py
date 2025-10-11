@@ -4769,7 +4769,7 @@ async def creer_webhook(interaction: discord.Interaction, nom: str, avatar: disc
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     
     try:
         # Traiter l'avatar si fourni
@@ -4830,11 +4830,25 @@ async def creer_webhook(interaction: discord.Interaction, nom: str, avatar: disc
         
         embed.add_field(
             name="ℹ️ Utilisation",
-            value="Copiez l'URL ci-dessus pour utiliser ce webhook avec vos applications.",
+            value="L'URL a également été envoyée en message privé pour faciliter la copie sur mobile.",
             inline=False
         )
         
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        
+        # Envoyer l'URL en MP sans embed pour faciliter la copie sur mobile
+        try:
+            dm_message = f"🔗 **Webhook créé dans #{interaction.channel.name}**\n\nURL du webhook :\n{webhook.url}\n\nVous pouvez copier cette URL pour l'utiliser avec vos applications."
+            await interaction.user.send(dm_message)
+        except discord.Forbidden:
+            # Si l'utilisateur a les MPs fermés, on l'informe dans la réponse
+            error_embed = discord.Embed(
+                title="⚠️ Message privé non envoyé",
+                description="Impossible d'envoyer l'URL en message privé (MPs fermés). Vous pouvez copier l'URL depuis le message ci-dessus.",
+                color=0xffa500,
+                timestamp=datetime.datetime.now()
+            )
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
         
         # Log dans le salon des logs
         log_embed = discord.Embed(
