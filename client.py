@@ -4155,6 +4155,7 @@ async def help_command(interaction: discord.Interaction):
             ("/set_lvl", "Active ou désactive le système de niveaux."),
             ("/set_channel_lvl", "Choisit le salon de logs des passages de niveau."),
             ("/categorie", "Applique les permissions de catégorie aux salons."),
+            ("/creer_webhook", "Crée un webhook dans le salon courant."),
         ]
         
         outils_rp = [
@@ -4737,6 +4738,147 @@ async def categorie(interaction: discord.Interaction, categorie: discord.Categor
         )
         await interaction.followup.send(embed=embed)
         print(f"[ERROR] Erreur dans la commande categorie: {e}")
+
+@bot.tree.command(name="creer_webhook", description="Crée un webhook dans le salon courant")
+@app_commands.describe(
+    nom="Nom du webhook",
+    avatar="Image à utiliser comme avatar du webhook"
+)
+async def creer_webhook(interaction: discord.Interaction, nom: str, avatar: discord.Attachment = None):
+    """Crée un webhook dans le salon courant avec vérification des permissions."""
+    
+    # Vérifier les permissions de l'utilisateur
+    if not interaction.channel.permissions_for(interaction.user).manage_webhooks:
+        embed = discord.Embed(
+            title="❌ Permissions insuffisantes",
+            description="Vous devez avoir la permission **Gérer les webhooks** dans ce salon pour utiliser cette commande.",
+            color=0xff0000,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+    
+    # Vérifier que le bot a les permissions nécessaires
+    if not interaction.channel.permissions_for(interaction.guild.me).manage_webhooks:
+        embed = discord.Embed(
+            title="❌ Permissions du bot insuffisantes",
+            description="Le bot n'a pas la permission **Gérer les webhooks** dans ce salon.",
+            color=0xff0000,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+    
+    await interaction.response.defer()
+    
+    try:
+        # Traiter l'avatar si fourni
+        avatar_bytes = None
+        if avatar:
+            # Vérifier que c'est une image
+            if not avatar.content_type.startswith('image/'):
+                embed = discord.Embed(
+                    title="❌ Fichier invalide",
+                    description="Le fichier fourni doit être une image (PNG, JPG, GIF, etc.).",
+                    color=0xff0000,
+                    timestamp=datetime.datetime.now()
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Vérifier la taille (max 8MB)
+            if avatar.size > 8 * 1024 * 1024:
+                embed = discord.Embed(
+                    title="❌ Fichier trop volumineux",
+                    description="L'image ne doit pas dépasser 8 MB.",
+                    color=0xff0000,
+                    timestamp=datetime.datetime.now()
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Lire les données de l'image
+            avatar_bytes = await avatar.read()
+        
+        # Créer le webhook
+        webhook = await interaction.channel.create_webhook(
+            name=nom,
+            avatar=avatar_bytes,
+            reason=f"Webhook créé par {interaction.user} via commande /creer_webhook"
+        )
+        
+        # Créer l'embed de succès avec l'URL
+        embed = discord.Embed(
+            title="✅ Webhook créé avec succès",
+            description=f"**Nom :** {webhook.name}\n"
+                       f"**Salon :** {interaction.channel.mention}\n"
+                       f"**ID :** `{webhook.id}`",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        
+        # Ajouter l'avatar si présent
+        if webhook.avatar:
+            embed.set_thumbnail(url=webhook.display_avatar.url)
+        
+        # Ajouter l'URL du webhook dans un champ séparé pour faciliter la copie
+        embed.add_field(
+            name="🔗 URL du webhook",
+            value=f"```{webhook.url}```",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="ℹ️ Utilisation",
+            value="Copiez l'URL ci-dessus pour utiliser ce webhook avec vos applications.",
+            inline=False
+        )
+        
+        await interaction.followup.send(embed=embed)
+        
+        # Log dans le salon des logs
+        log_embed = discord.Embed(
+            title="🔗 Webhook créé",
+            description=f"**Créateur :** {interaction.user.mention}\n"
+                       f"**Salon :** {interaction.channel.mention}\n"
+                       f"**Nom du webhook :** {webhook.name}\n"
+                       f"**ID :** `{webhook.id}`",
+            color=EMBED_COLOR,
+            timestamp=datetime.datetime.now()
+        )
+        
+        if webhook.avatar:
+            log_embed.set_thumbnail(url=webhook.display_avatar.url)
+        
+        await send_log(interaction.guild, embed=log_embed)
+        
+    except discord.Forbidden:
+        embed = discord.Embed(
+            title="❌ Permissions insuffisantes",
+            description="Le bot n'a pas les permissions nécessaires pour créer un webhook dans ce salon.",
+            color=0xff0000,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        
+    except discord.HTTPException as e:
+        embed = discord.Embed(
+            title="❌ Erreur lors de la création",
+            description=f"Une erreur est survenue lors de la création du webhook :\n```{str(e)}```",
+            color=0xff0000,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        embed = discord.Embed(
+            title="❌ Erreur inattendue",
+            description=f"Une erreur inattendue est survenue :\n```{str(e)}```",
+            color=0xff0000,
+            timestamp=datetime.datetime.now()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        print(f"[ERROR] Erreur dans la commande creer_webhook: {e}")
 
 if __name__ == "__main__":
     # Toujours restaurer les fichiers JSON depuis PostgreSQL avant tout chargement local
