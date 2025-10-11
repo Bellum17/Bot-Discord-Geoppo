@@ -4838,7 +4838,7 @@ async def creer_webhook(interaction: discord.Interaction, nom: str, avatar: disc
         
         # Envoyer l'URL en MP sans embed pour faciliter la copie sur mobile
         try:
-            dm_message = f"🔗 **Webhook créé dans #{interaction.channel.name}**\n\nURL du webhook :\n{webhook.url}\n\nVous pouvez copier cette URL pour l'utiliser avec vos applications."
+            dm_message = f"🔗 **Webhook créé dans #{interaction.channel.name}**\n\nURL du webhook :\n{webhook.url}"
             await interaction.user.send(dm_message)
         except discord.Forbidden:
             # Si l'utilisateur a les MPs fermés, on l'informe dans la réponse
